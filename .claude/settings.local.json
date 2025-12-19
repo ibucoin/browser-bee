@@ -6,7 +6,8 @@
       "Bash(bunx shadcn@latest init:*)",
       "Bash(bun run dev)",
       "Bash(bunx shadcn@latest add:*)",
-      "Bash(openspec list:*)"
+      "Bash(openspec list:*)",
+      "Bash(openspec validate:*)"
     ]
   }
 }
