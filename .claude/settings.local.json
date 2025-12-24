@@ -10,7 +10,8 @@
       "Bash(openspec validate:*)",
       "Bash(cat /Users/ibucoin/Code/100Projects/browser-bee/.output/chrome-mv3-dev/manifest.json)",
       "Bash(openspec show:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(openspec archive add-tab-isolated-chat:*)"
     ]
   }
 }
