@@ -1,19 +1,24 @@
-import { Message, MessageProps } from './Message';
-const mockMessages: MessageProps[] = [
-  { role: 'user', content: '你好，请帮我总结一下这个页面的内容。' },
-  {
-    role: 'assistant',
-    content:
-      '好的！我来帮你总结这个页面的主要内容。这是一个示例对话，展示了 Browser Bee 的基本界面。',
-  },
-];
+import { Message } from './Message';
+import { useChatStore } from '@/lib/chat-store.tsx';
 
 export function ChatContainer() {
+  const { getCurrentChat } = useChatStore();
+  const chat = getCurrentChat();
+  const messages = chat?.messages ?? [];
+
+  if (messages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+        开始新的对话...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="space-y-3">
-        {mockMessages.map((message, index) => (
-          <Message key={index} {...message} />
+        {messages.map((message) => (
+          <Message key={message.id} role={message.role} content={message.content} />
         ))}
       </div>
     </div>

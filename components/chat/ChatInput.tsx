@@ -2,25 +2,23 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { Globe, Image, LayoutGrid, Plus } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
-
-interface TabItem {
-  id: number;
-  title: string;
-  url: string;
-  favicon?: string;
-  hostname: string;
-}
+import { useChatStore } from '@/lib/chat-store.tsx';
+import { TabInfo, Message } from '@/lib/types';
 
 export function ChatInput() {
+  const { getCurrentChat, setSelectedTabs, addMessage, state } = useChatStore();
   const [message, setMessage] = useState('');
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [tabs, setTabs] = useState<TabItem[]>([]);
-  const [activeTabId, setActiveTabId] = useState<number | null>(null);
+  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [browserActiveTabId, setBrowserActiveTabId] = useState<number | null>(null);
   const [totalTabCount, setTotalTabCount] = useState(0);
-  const [selectedTabs, setSelectedTabs] = useState<TabItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
+
+  const chat = getCurrentChat();
+  const selectedTabs = chat?.selectedTabs ?? [];
+  const activeTabId = state.activeTabId;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -30,9 +28,9 @@ export function ChatInput() {
   }, [message]);
 
   const loadTabs = () => {
-    chrome.tabs.query({ currentWindow: true }, (tabs) => {
-      setTotalTabCount(tabs.length);
-      const normalizedTabs = tabs
+    chrome.tabs.query({ currentWindow: true }, (chromeTabs) => {
+      setTotalTabCount(chromeTabs.length);
+      const normalizedTabs = chromeTabs
         .filter((tab) => Boolean(tab.url))
         .map((tab) => {
           const url = tab.url || '';
@@ -45,15 +43,9 @@ export function ChatInput() {
             hostname,
           };
         });
-      const activeTab = tabs.find((tab) => tab.active);
-      setActiveTabId(activeTab?.id ?? null);
+      const activeTab = chromeTabs.find((tab) => tab.active);
+      setBrowserActiveTabId(activeTab?.id ?? null);
       setTabs(normalizedTabs);
-      if (activeTab?.url && selectedTabs.length === 0) {
-        const activeTabInfo = normalizedTabs.find((tab) => tab.id === activeTab.id);
-        if (activeTabInfo) {
-          setSelectedTabs([activeTabInfo]);
-        }
-      }
     });
   };
 
@@ -82,25 +74,35 @@ export function ChatInput() {
     };
   }, [showAttachMenu]);
 
-  const getTabKey = (tab: TabItem) => tab.url || `id:${tab.id}`;
+  const getTabKey = (tab: TabInfo) => tab.url || `id:${tab.id}`;
 
-  const handleAddTab = (tab: TabItem) => {
-    setSelectedTabs((prev) => {
-      const newKey = getTabKey(tab);
-      const exists = prev.some((item) => getTabKey(item) === newKey);
-      if (exists) return prev;
-      return [...prev, tab];
-    });
+  const handleAddTab = (tab: TabInfo) => {
+    if (activeTabId === null) return;
+    const newKey = getTabKey(tab);
+    const exists = selectedTabs.some((item) => getTabKey(item) === newKey);
+    if (exists) return;
+    setSelectedTabs(activeTabId, [...selectedTabs, tab]);
   };
 
-  const handleRemoveTab = (tab: TabItem) => {
+  const handleRemoveTab = (tab: TabInfo) => {
+    if (activeTabId === null) return;
     const removeKey = getTabKey(tab);
-    setSelectedTabs((prev) => prev.filter((item) => getTabKey(item) !== removeKey));
+    setSelectedTabs(
+      activeTabId,
+      selectedTabs.filter((item) => getTabKey(item) !== removeKey)
+    );
   };
 
   const handleSend = () => {
-    if (!message.trim()) return;
-    // TODO: 实现发送消息
+    if (!message.trim() || activeTabId === null) return;
+    const newMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: message.trim(),
+      timestamp: Date.now(),
+      attachedTabs: selectedTabs.length > 0 ? [...selectedTabs] : undefined,
+    };
+    addMessage(activeTabId, newMessage);
     setMessage('');
   };
 
@@ -112,8 +114,8 @@ export function ChatInput() {
   };
 
   const orderedTabs = [
-    ...tabs.filter((tab) => tab.id === activeTabId),
-    ...tabs.filter((tab) => tab.id !== activeTabId),
+    ...tabs.filter((tab) => tab.id === browserActiveTabId),
+    ...tabs.filter((tab) => tab.id !== browserActiveTabId),
   ];
 
   return (
