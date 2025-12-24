@@ -1,45 +1,40 @@
-import { useEffect, useState } from 'react';
-import { Globe } from 'lucide-react';
+import { Globe, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-interface PageInfo {
+interface PageCardProps {
   title: string;
   url: string;
   favicon?: string;
+  onClose?: () => void;
 }
 
-export function PageCard() {
-  const [pageInfo, setPageInfo] = useState<PageInfo>({
-    title: '加载中...',
-    url: '',
-  });
-
-  useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tab = tabs[0];
-      if (tab) {
-        setPageInfo({
-          title: tab.title || '未知页面',
-          url: tab.url || '',
-          favicon: tab.favIconUrl,
-        });
-      }
-    });
-  }, []);
-
-  const hostname = pageInfo.url ? new URL(pageInfo.url).hostname : '';
+export function PageCard({ title, url, favicon, onClose }: PageCardProps) {
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
-      <div className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center">
-        {pageInfo.favicon ? (
-          <img src={pageInfo.favicon} alt="" className="w-4 h-4" />
+    <div className="group relative flex w-[200px] shrink-0 items-center gap-2 rounded-lg bg-muted px-2 py-1.5">
+      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-background/80 overflow-hidden">
+        {favicon ? (
+          <img src={favicon} alt="" className="h-4 w-4 rounded-full" />
         ) : (
-          <Globe className="w-4 h-4 text-muted-foreground" />
+          <Globe className="h-4 w-4 text-muted-foreground" />
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground truncate">{hostname || pageInfo.title}</p>
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-foreground">{title}</p>
+        <p className="truncate text-[11px] py-1 text-muted-foreground">{url}</p>
       </div>
+      {onClose ? (
+        <Button
+          type="button"
+          onClick={onClose}
+          variant="secondary"
+          size="icon"
+          className="absolute -right-2 -top-2 z-10 h-5 w-5 rounded-full opacity-0 shadow-sm transition-colors transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
+          aria-label="关闭页面标签"
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      ) : null}
     </div>
   );
 }

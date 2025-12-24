@@ -1,6 +1,4 @@
 import { Message, MessageProps } from './Message';
-import { PageCard } from '@/components/page-card/PageCard';
-
 const mockMessages: MessageProps[] = [
   { role: 'user', content: '你好，请帮我总结一下这个页面的内容。' },
   {
@@ -13,7 +11,6 @@ const mockMessages: MessageProps[] = [
 export function ChatContainer() {
   return (
     <div className="space-y-3">
-      <PageCard />
       <div className="space-y-3">
         {mockMessages.map((message, index) => (
           <Message key={index} {...message} />
