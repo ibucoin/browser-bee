@@ -12,7 +12,12 @@ export interface ChatRequest {
 export async function streamChat({ messages, onChunk, onComplete, onError }: ChatRequest) {
   try {
     const config = await getAIConfig();
-    console.log('[AI Service] Using config:', { baseURL: config.baseURL, model: config.model });
+    console.log('[AI Service] Using config:', {
+      baseURL: config.baseURL,
+      model: config.model,
+      apiKeyLength: config.apiKey?.length,
+    });
+    console.log('[AI Service] Full request URL will be:', `${config.baseURL}/chat/completions`);
 
     if (!config.apiKey) {
       throw new Error('请先配置 API Key');
@@ -45,8 +50,36 @@ export async function streamChat({ messages, onChunk, onComplete, onError }: Cha
     return fullText;
   } catch (error) {
     console.error('[AI Service] Full error:', error);
-    console.error('[AI Service] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-    const err = error instanceof Error ? error : new Error(String(error));
+
+    // 提取更详细的错误信息
+    let errorMessage = '未知错误';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // 尝试提取 API 错误的详细信息
+      const apiError = error as Error & {
+        cause?: { message?: string };
+        data?: { error?: { message?: string } };
+        responseBody?: string;
+      };
+      if (apiError.cause?.message) {
+        errorMessage = apiError.cause.message;
+      } else if (apiError.data?.error?.message) {
+        errorMessage = apiError.data.error.message;
+      } else if (apiError.responseBody) {
+        try {
+          const body = JSON.parse(apiError.responseBody);
+          if (body.error?.message) {
+            errorMessage = body.error.message;
+          }
+        } catch {
+          // 忽略解析错误
+        }
+      }
+    } else {
+      errorMessage = String(error);
+    }
+
+    const err = new Error(errorMessage);
     onError?.(err);
     throw err;
   }

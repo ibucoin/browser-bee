@@ -9,9 +9,9 @@ export interface AIConfig {
 // 硬编码配置 - 直接用于测试
 // OpenAI 兼容的中转站需要在 baseURL 后加 /v1
 const CONFIG: AIConfig = {
-  baseURL: 'https://ai.hybgzs.com/v1',
-  apiKey: 'sk-MY1nxDyRCnTkFPH_nMP4YqmFt3O4l7Af0iycCl2QBPoL9_PiohiNAIZCcok',
-  model: 'claude-sonnet-4.5',
+  baseURL: 'https://kfc-api.sxxe.net/v1',
+  apiKey: 'sk-dj6l5fH7ig0dgqhZe1EbT9JLoTJ1a9BvAX74uBIlG6qUKzmX',
+  model: 'cursor2-claude-4.5-sonnet',
 };
 
 export async function getAIConfig(): Promise<AIConfig> {

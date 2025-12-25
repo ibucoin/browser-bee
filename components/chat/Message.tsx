@@ -20,8 +20,14 @@ export function Message({ role, content }: MessageProps) {
   }
 
   // AI 消息：直接渲染，无气泡限制
+  // 检查是否为错误消息
+  const isError = content.startsWith('错误:') || content.startsWith('错误：');
+
   return (
-    <div className="text-sm text-foreground whitespace-pre-wrap">
+    <div className={cn(
+      "text-base whitespace-pre-wrap",
+      isError ? "text-destructive" : "text-foreground"
+    )}>
       {content}
     </div>
   );
