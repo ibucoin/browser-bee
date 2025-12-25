@@ -12,13 +12,33 @@ The system SHALL extract and provide page content from browser tabs using Readab
 #### Scenario: 从多个 Tab 获取内容
 - **WHEN** 用户添加了多个 Tab 到对话上下文
 - **AND** 用户发送消息
-- **THEN** 系统依次获取各个 Tab 的页面内容
+- **THEN** 系统获取各个 Tab 已保存的页面内容
 - **AND** 将所有内容整合后发送给 AI
 
 #### Scenario: Readability 解析失败时降级
 - **WHEN** Readability 无法解析页面内容
 - **THEN** 系统使用语义标签（article, main 等）提取内容
 - **AND** 如果语义标签也无法匹配，则使用 body.innerText 作为最后降级
+
+### Requirement: Page Content Persistence
+The system SHALL persist extracted page content in the conversation context for reuse across multiple messages.
+
+#### Scenario: 对话初始化时保存页面内容
+- **WHEN** Tab 被添加到对话上下文（对话初始化或用户添加新 Tab）
+- **THEN** 系统自动获取该 Tab 的页面内容
+- **AND** 将内容保存在 TabInfo.pageContent 字段中
+- **AND** 后续消息自动复用已保存的内容
+
+#### Scenario: 发送消息时使用已保存内容
+- **WHEN** 用户发送消息
+- **AND** 对话上下文中有已保存页面内容的 Tab
+- **THEN** 系统直接使用已保存的内容构建 AI 消息
+- **AND** 无需再次请求 Content Script
+
+#### Scenario: 用户手动刷新内容
+- **WHEN** 用户点击 Tab 标签上的刷新按钮
+- **THEN** 系统重新获取该 Tab 的页面内容
+- **AND** 更新 TabInfo.pageContent 字段
 
 ### Requirement: Content Script Injection
 The system SHALL inject content scripts into web pages to enable content extraction.
@@ -55,14 +75,16 @@ The system SHALL allow users to add multiple tab pages to a single conversation 
 #### Scenario: 添加其他页面到上下文
 - **WHEN** 用户点击"+"按钮选择其他打开的 Tab
 - **THEN** 被选中的 Tab 页面信息添加到当前对话的上下文列表中
+- **AND** 自动获取并保存该 Tab 的页面内容
 - **AND** 可以添加多个不同页面
 
 #### Scenario: 移除上下文页面
 - **WHEN** 用户点击某个上下文标签的关闭按钮
 - **THEN** 该页面从当前对话的上下文中移除
+- **AND** 释放已保存的页面内容
 
-#### Scenario: 发送消息时获取上下文页面内容
+#### Scenario: 发送消息时携带上下文页面内容
 - **WHEN** 用户发送消息
 - **AND** 当前对话有上下文页面
-- **THEN** 系统获取所有上下文页面的主体内容
-- **AND** 将内容整合到消息上下文中发送给 AI
+- **THEN** 系统将所有上下文页面的已保存内容整合到消息中
+- **AND** 发送给 AI 进行处理
