@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Pin, PinOff, Settings, X } from 'lucide-react';
 
-export function Header() {
+interface HeaderProps {
+  onOpenSettings?: () => void;
+}
+
+export function Header({ onOpenSettings }: HeaderProps) {
   const [isPinned, setIsPinned] = useState(false);
 
   const handleNewChat = () => {
@@ -15,7 +19,8 @@ export function Header() {
   };
 
   const handleSettings = () => {
-    // TODO: 打开设置页面
+    console.log('Settings clicked, onOpenSettings:', onOpenSettings);
+    onOpenSettings?.();
   };
 
   const handleClose = () => {

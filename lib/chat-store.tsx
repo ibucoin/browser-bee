@@ -15,6 +15,7 @@ interface ChatState {
 type ChatAction =
   | { type: 'SET_ACTIVE_TAB'; tabId: number }
   | { type: 'ADD_MESSAGE'; tabId: number; message: Message }
+  | { type: 'UPDATE_LAST_MESSAGE'; tabId: number; content: string }
   | { type: 'SET_SELECTED_TABS'; tabId: number; tabs: TabInfo[] }
   | { type: 'REMOVE_TAB_CHAT'; tabId: number }
   | { type: 'INIT_TAB_CHAT'; tabId: number; selectedTabs?: TabInfo[]; boundTabId?: number }
@@ -56,6 +57,24 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           [action.tabId]: {
             ...chat,
             messages: [...chat.messages, action.message],
+          },
+        },
+      };
+    }
+
+    case 'UPDATE_LAST_MESSAGE': {
+      const chat = state.chats[action.tabId];
+      if (!chat || chat.messages.length === 0) return state;
+      const messages = [...chat.messages];
+      const lastMessage = messages[messages.length - 1];
+      messages[messages.length - 1] = { ...lastMessage, content: action.content };
+      return {
+        ...state,
+        chats: {
+          ...state.chats,
+          [action.tabId]: {
+            ...chat,
+            messages,
           },
         },
       };
@@ -149,6 +168,7 @@ interface ChatContextValue {
   setActiveTab: (tabId: number) => void;
   initTabChat: (tabId: number, selectedTabs?: TabInfo[], boundTabId?: number) => void;
   addMessage: (tabId: number, message: Message) => void;
+  updateLastMessage: (tabId: number, content: string) => void;
   setSelectedTabs: (tabId: number, tabs: TabInfo[]) => void;
   removeTabChat: (tabId: number) => void;
   updateTabInfo: (tabInfo: TabInfo, urlChanged: boolean) => void;
@@ -170,6 +190,10 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
 
   const addMessage = useCallback((tabId: number, message: Message) => {
     dispatch({ type: 'ADD_MESSAGE', tabId, message });
+  }, []);
+
+  const updateLastMessage = useCallback((tabId: number, content: string) => {
+    dispatch({ type: 'UPDATE_LAST_MESSAGE', tabId, content });
   }, []);
 
   const setSelectedTabs = useCallback((tabId: number, tabs: TabInfo[]) => {
@@ -196,6 +220,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
         setActiveTab,
         initTabChat,
         addMessage,
+        updateLastMessage,
         setSelectedTabs,
         removeTabChat,
         updateTabInfo,

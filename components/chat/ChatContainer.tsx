@@ -15,8 +15,8 @@ export function ChatContainer() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-3">
+    <div className="space-y-2">
+      <div className="space-y-2">
         {messages.map((message) => (
           <Message key={message.id} role={message.role} content={message.content} />
         ))}

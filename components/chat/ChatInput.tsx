@@ -3,11 +3,13 @@ import { Globe, Image, LayoutGrid, Plus } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/lib/chat-store.tsx';
-import { TabInfo, Message } from '@/lib/types';
+import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError } from '@/lib/types';
 
 export function ChatInput() {
-  const { getCurrentChat, setSelectedTabs, addMessage, state } = useChatStore();
+  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, state } = useChatStore();
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const streamingContentRef = useRef('');
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [browserActiveTabId, setBrowserActiveTabId] = useState<number | null>(null);
@@ -53,6 +55,28 @@ export function ChatInput() {
     loadTabs();
   }, []);
 
+  // 监听来自 background 的 AI 响应消息
+  useEffect(() => {
+    const handleMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError) => {
+      if (message.chatTabId !== activeTabId) return;
+
+      if (message.type === 'ai_chat_chunk') {
+        streamingContentRef.current += message.chunk;
+        updateLastMessage(activeTabId!, streamingContentRef.current);
+      } else if (message.type === 'ai_chat_complete') {
+        setIsLoading(false);
+        streamingContentRef.current = '';
+      } else if (message.type === 'ai_chat_error') {
+        setIsLoading(false);
+        streamingContentRef.current = '';
+        updateLastMessage(activeTabId!, `错误: ${message.error}`);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, [activeTabId, updateLastMessage]);
+
   useEffect(() => {
     if (!showAttachMenu) return;
     const handlePointerDown = (event: MouseEvent) => {
@@ -94,15 +118,49 @@ export function ChatInput() {
   };
 
   const handleSend = () => {
-    if (!message.trim() || activeTabId === null) return;
-    const newMessage: Message = {
+    console.log('[ChatInput] handleSend called, message:', message, 'activeTabId:', activeTabId, 'isLoading:', isLoading);
+    if (!message.trim() || activeTabId === null || isLoading) {
+      console.log('[ChatInput] Blocked: empty message or no activeTabId or loading');
+      return;
+    }
+
+    console.log('[ChatInput] Sending message:', message.trim());
+
+    const chat = getCurrentChat();
+    const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: message.trim(),
       timestamp: Date.now(),
       attachedTabs: selectedTabs.length > 0 ? [...selectedTabs] : undefined,
     };
-    addMessage(activeTabId, newMessage);
+    addMessage(activeTabId, userMessage);
+
+    // 创建空的 assistant 消息用于流式更新
+    const assistantMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    };
+    addMessage(activeTabId, assistantMessage);
+
+    // 发送 AI 请求到 background
+    const allMessages = [...(chat?.messages ?? []), userMessage];
+    const request: AIChatRequest = {
+      type: 'ai_chat_request',
+      chatTabId: activeTabId,
+      messages: allMessages,
+    };
+    console.log('[ChatInput] Sending request to background:', request);
+    chrome.runtime.sendMessage(request, (response) => {
+      console.log('[ChatInput] Got response from background:', response);
+      if (chrome.runtime.lastError) {
+        console.error('[ChatInput] Error sending message:', chrome.runtime.lastError);
+      }
+    });
+
+    setIsLoading(true);
     setMessage('');
   };
 

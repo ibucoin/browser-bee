@@ -1,4 +1,5 @@
-import { TabEventMessage, TabInfo } from '@/lib/types';
+import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError } from '@/lib/types';
+import { streamChat } from '@/lib/ai-service';
 
 export default defineBackground(() => {
   console.log('Hello background!', { id: browser.runtime.id });
@@ -50,4 +51,59 @@ export default defineBackground(() => {
       });
     }
   });
+
+  // 监听 AI 聊天请求
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    console.log('[Background] Received message:', message);
+    if (message.type === 'ai_chat_request') {
+      console.log('[Background] Processing AI chat request');
+      const request = message as AIChatRequest;
+      handleAIChatRequest(request);
+      sendResponse({ received: true });
+    }
+    return true;
+  });
+
+  async function handleAIChatRequest(request: AIChatRequest) {
+    const { chatTabId, messages } = request;
+    console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length });
+
+    try {
+      await streamChat({
+        messages,
+        onChunk: (chunk) => {
+          console.log('[Background] Received chunk:', chunk.substring(0, 50));
+          const chunkMessage: AIChatStreamChunk = {
+            type: 'ai_chat_chunk',
+            chatTabId,
+            chunk,
+          };
+          chrome.runtime.sendMessage(chunkMessage).catch(() => {});
+        },
+        onComplete: (fullText) => {
+          const completeMessage: AIChatComplete = {
+            type: 'ai_chat_complete',
+            chatTabId,
+            fullText,
+          };
+          chrome.runtime.sendMessage(completeMessage).catch(() => {});
+        },
+        onError: (error) => {
+          const errorMessage: AIChatError = {
+            type: 'ai_chat_error',
+            chatTabId,
+            error: error.message,
+          };
+          chrome.runtime.sendMessage(errorMessage).catch(() => {});
+        },
+      });
+    } catch (error) {
+      const errorMessage: AIChatError = {
+        type: 'ai_chat_error',
+        chatTabId,
+        error: error instanceof Error ? error.message : String(error),
+      };
+      chrome.runtime.sendMessage(errorMessage).catch(() => {});
+    }
+  }
 });
