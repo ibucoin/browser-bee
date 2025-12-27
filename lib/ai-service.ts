@@ -1,12 +1,44 @@
 import { streamText } from 'ai';
 import { getAIConfig, getChatModel } from './ai-config';
-import { Message } from './types';
+import { Message, TabInfo } from './types';
 
 export interface ChatRequest {
   messages: Message[];
   onChunk?: (chunk: string) => void;
   onComplete?: (fullText: string) => void;
   onError?: (error: Error) => void;
+}
+
+/**
+ * 构建包含页面上下文的消息列表
+ */
+export function buildMessagesWithContext(
+  messages: Message[],
+  selectedTabs: TabInfo[]
+): { role: 'user' | 'assistant' | 'system'; content: string }[] {
+  const contextParts = selectedTabs
+    .filter((tab) => tab.pageContent)
+    .map((tab) => `[${tab.title}](${tab.url}):\n${tab.pageContent}`);
+
+  const coreMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+
+  // 如果有页面内容，添加系统提示
+  if (contextParts.length > 0) {
+    coreMessages.push({
+      role: 'system',
+      content: `以下是用户提供的网页内容作为上下文：\n\n${contextParts.join('\n\n---\n\n')}`,
+    });
+  }
+
+  // 添加历史消息
+  for (const m of messages) {
+    coreMessages.push({
+      role: m.role,
+      content: m.content,
+    });
+  }
+
+  return coreMessages;
 }
 
 export async function streamChat({ messages, onChunk, onComplete, onError }: ChatRequest) {
@@ -28,7 +60,7 @@ export async function streamChat({ messages, onChunk, onComplete, onError }: Cha
 
     // 转换消息格式
     const coreMessages = messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
+      role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
 

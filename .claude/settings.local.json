@@ -12,7 +12,9 @@
       "Bash(openspec show:*)",
       "Bash(mkdir:*)",
       "Bash(openspec archive add-tab-isolated-chat:*)",
-      "Bash(bun run compile:*)"
+      "Bash(bun run compile:*)",
+      "Bash(cat:*)",
+      "Bash(openspec archive:*)"
     ]
   }
 }

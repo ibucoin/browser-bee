@@ -19,7 +19,8 @@ type ChatAction =
   | { type: 'SET_SELECTED_TABS'; tabId: number; tabs: TabInfo[] }
   | { type: 'REMOVE_TAB_CHAT'; tabId: number }
   | { type: 'INIT_TAB_CHAT'; tabId: number; selectedTabs?: TabInfo[]; boundTabId?: number }
-  | { type: 'UPDATE_TAB_INFO'; tabInfo: TabInfo; urlChanged: boolean };
+  | { type: 'UPDATE_TAB_INFO'; tabInfo: TabInfo; urlChanged: boolean }
+  | { type: 'UPDATE_TAB_CONTENT'; chatTabId: number; browserTabId: number; pageContent: string };
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
@@ -153,6 +154,26 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     }
 
+    case 'UPDATE_TAB_CONTENT': {
+      const chat = state.chats[action.chatTabId];
+      if (!chat) return state;
+      const newSelectedTabs = chat.selectedTabs.map((tab) =>
+        tab.id === action.browserTabId
+          ? { ...tab, pageContent: action.pageContent }
+          : tab
+      );
+      return {
+        ...state,
+        chats: {
+          ...state.chats,
+          [action.chatTabId]: {
+            ...chat,
+            selectedTabs: newSelectedTabs,
+          },
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -172,6 +193,7 @@ interface ChatContextValue {
   setSelectedTabs: (tabId: number, tabs: TabInfo[]) => void;
   removeTabChat: (tabId: number) => void;
   updateTabInfo: (tabInfo: TabInfo, urlChanged: boolean) => void;
+  updateTabContent: (chatTabId: number, browserTabId: number, pageContent: string) => void;
   getCurrentChat: () => TabChat | null;
 }
 
@@ -208,6 +230,10 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_TAB_INFO', tabInfo, urlChanged });
   }, []);
 
+  const updateTabContent = useCallback((chatTabId: number, browserTabId: number, pageContent: string) => {
+    dispatch({ type: 'UPDATE_TAB_CONTENT', chatTabId, browserTabId, pageContent });
+  }, []);
+
   const getCurrentChat = useCallback(() => {
     if (state.activeTabId === null) return null;
     return state.chats[state.activeTabId] ?? null;
@@ -224,6 +250,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
         setSelectedTabs,
         removeTabChat,
         updateTabInfo,
+        updateTabContent,
         getCurrentChat,
       }}
     >

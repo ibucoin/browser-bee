@@ -3,10 +3,31 @@ import { Globe, Image, LayoutGrid, Plus } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/lib/chat-store.tsx';
-import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError } from '@/lib/types';
+import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
+
+// 请求提取标签页内容
+async function extractTabContent(tabId: number): Promise<{ success: boolean; content?: string; error?: string }> {
+  return new Promise((resolve) => {
+    const request: ContentExtractRequest = {
+      type: 'content_extract_request',
+      tabId,
+    };
+    chrome.runtime.sendMessage(request, (response: ContentExtractResponse) => {
+      if (chrome.runtime.lastError) {
+        resolve({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      if (response?.success) {
+        resolve({ success: true, content: response.content });
+      } else {
+        resolve({ success: false, error: response?.error || '提取失败' });
+      }
+    });
+  });
+}
 
 export function ChatInput() {
-  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, state } = useChatStore();
+  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, updateTabContent, state } = useChatStore();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const streamingContentRef = useRef('');
@@ -105,6 +126,8 @@ export function ChatInput() {
     const newKey = getTabKey(tab);
     const exists = selectedTabs.some((item) => getTabKey(item) === newKey);
     if (exists) return;
+
+    // 只添加 Tab 到列表，不立即提取内容（发送时再提取）
     setSelectedTabs(activeTabId, [...selectedTabs, tab]);
   };
 
@@ -117,22 +140,75 @@ export function ChatInput() {
     );
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     console.log('[ChatInput] handleSend called, message:', message, 'activeTabId:', activeTabId, 'isLoading:', isLoading);
     if (!message.trim() || activeTabId === null || isLoading) {
       console.log('[ChatInput] Blocked: empty message or no activeTabId or loading');
       return;
     }
 
-    console.log('[ChatInput] Sending message:', message.trim());
+    setIsLoading(true);
+    const userMessageContent = message.trim();
+    setMessage('');
+
+    console.log('[ChatInput] Sending message:', userMessageContent);
 
     const chat = getCurrentChat();
+    const currentSelectedTabs = chat?.selectedTabs ?? [];
+
+    // 发送前提取所有未提取内容的标签页
+    const tabsNeedingContent = currentSelectedTabs.filter((tab) => !tab.pageContent);
+    console.log('[ChatInput] Tabs needing content extraction:', tabsNeedingContent.length);
+    console.log('[ChatInput] Current selected tabs:', currentSelectedTabs.map(t => ({ id: t.id, title: t.title, hasContent: Boolean(t.pageContent) })));
+
+    // 收集提取结果，用于直接构建最终的 selectedTabs
+    const extractedContentMap: Record<number, string> = {};
+
+    if (tabsNeedingContent.length > 0) {
+      console.log('[ChatInput] Extracting content for tabs:', tabsNeedingContent.map(t => t.title));
+      const extractPromises = tabsNeedingContent.map(async (tab) => {
+        console.log('[ChatInput] Starting extraction for tab:', tab.id, tab.title);
+        const result = await extractTabContent(tab.id);
+        console.log('[ChatInput] Extraction result for tab', tab.id, ':', {
+          success: result.success,
+          contentLength: result.content?.length ?? 0,
+          error: result.error,
+          contentPreview: result.content?.substring(0, 300)
+        });
+        if (result.success && result.content) {
+          // 保存到本地 map 中，同时更新 store
+          extractedContentMap[tab.id] = result.content;
+          updateTabContent(activeTabId, tab.id, result.content);
+          return { tabId: tab.id, content: result.content };
+        }
+        return { tabId: tab.id, content: null };
+      });
+      await Promise.all(extractPromises);
+    }
+
+    // 直接基于 currentSelectedTabs 和提取结果构建最终的 tabs 列表
+    // 不依赖 store 的异步更新
+    const updatedSelectedTabs = currentSelectedTabs.map(tab => {
+      // 如果本次提取了新内容，使用新内容；否则保留原有的 pageContent
+      const newContent = extractedContentMap[tab.id];
+      if (newContent) {
+        return { ...tab, pageContent: newContent };
+      }
+      return tab;
+    });
+    console.log('[ChatInput] Updated selected tabs after extraction:', updatedSelectedTabs.map(t => ({
+      id: t.id,
+      title: t.title,
+      hasContent: Boolean(t.pageContent),
+      contentLength: t.pageContent?.length ?? 0
+    })));
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: message.trim(),
+      content: userMessageContent,
       timestamp: Date.now(),
-      attachedTabs: selectedTabs.length > 0 ? [...selectedTabs] : undefined,
+      attachedTabs: updatedSelectedTabs.length > 0 ? [...updatedSelectedTabs] : undefined,
     };
     addMessage(activeTabId, userMessage);
 
@@ -151,6 +227,7 @@ export function ChatInput() {
       type: 'ai_chat_request',
       chatTabId: activeTabId,
       messages: allMessages,
+      selectedTabs: updatedSelectedTabs,
     };
     console.log('[ChatInput] Sending request to background:', request);
     chrome.runtime.sendMessage(request, (response) => {
@@ -159,9 +236,6 @@ export function ChatInput() {
         console.error('[ChatInput] Error sending message:', chrome.runtime.lastError);
       }
     });
-
-    setIsLoading(true);
-    setMessage('');
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -186,6 +260,7 @@ export function ChatInput() {
               title={tab.title}
               url={tab.url}
               favicon={tab.favicon}
+              pageContent={tab.pageContent}
               onClose={() => handleRemoveTab(tab)}
             />
           ))}

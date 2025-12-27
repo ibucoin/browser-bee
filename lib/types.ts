@@ -4,11 +4,12 @@ export interface TabInfo {
   url: string;
   favicon?: string;
   hostname: string;
+  pageContent?: string;  // 页面主体内容（使用 Readability 提取）
 }
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   attachedTabs?: TabInfo[];
@@ -36,6 +37,7 @@ export interface AIChatRequest {
   type: 'ai_chat_request';
   chatTabId: number;
   messages: Message[];
+  selectedTabs: TabInfo[];
 }
 
 export interface AIChatStreamChunk {
@@ -57,3 +59,20 @@ export interface AIChatError {
 }
 
 export type AIMessage = AIChatRequest | AIChatStreamChunk | AIChatComplete | AIChatError;
+
+// 页面内容提取相关消息类型
+export interface ContentExtractRequest {
+  type: 'content_extract_request';
+  tabId: number;
+}
+
+export interface ContentExtractResponse {
+  type: 'content_extract_response';
+  tabId: number;
+  success: boolean;
+  title?: string;
+  content?: string;
+  error?: string;
+}
+
+export type ContentMessage = ContentExtractRequest | ContentExtractResponse;
