@@ -7,6 +7,7 @@ export interface ChatRequest {
   onChunk?: (chunk: string) => void;
   onComplete?: (fullText: string) => void;
   onError?: (error: Error) => void;
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -41,7 +42,7 @@ export function buildMessagesWithContext(
   return coreMessages;
 }
 
-export async function streamChat({ messages, onChunk, onComplete, onError }: ChatRequest) {
+export async function streamChat({ messages, onChunk, onComplete, onError, abortSignal }: ChatRequest) {
   try {
     const config = await getAIConfig();
     console.log('[AI Service] Using config:', {
@@ -69,16 +70,23 @@ export async function streamChat({ messages, onChunk, onComplete, onError }: Cha
     const result = streamText({
       model,
       messages: coreMessages,
+      abortSignal,
     });
 
     let fullText = '';
 
     for await (const chunk of result.textStream) {
+      if (abortSignal?.aborted) {
+        console.log('[AI Service] Stream aborted');
+        break;
+      }
       fullText += chunk;
       onChunk?.(chunk);
     }
 
-    onComplete?.(fullText);
+    if (!abortSignal?.aborted) {
+      onComplete?.(fullText);
+    }
     return fullText;
   } catch (error) {
     console.error('[AI Service] Full error:', error);

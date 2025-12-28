@@ -1,5 +1,9 @@
-import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
+import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, AIChatAborted, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
 import { streamChat, buildMessagesWithContext } from '@/lib/ai-service';
+import { safeGetHostname } from '@/lib/utils';
+
+// 存储每个 chatTabId 对应的 AbortController
+const activeRequests = new Map<number, AbortController>();
 
 // 页面内容提取函数 - 在目标页面中执行
 function extractPageContentInPage(): { title: string; content: string } {
@@ -61,7 +65,7 @@ export default defineBackground(() => {
         title: tab.title || '未命名标签页',
         url: tab.url,
         favicon: tab.favIconUrl,
-        hostname: new URL(tab.url).hostname,
+        hostname: safeGetHostname(tab.url),
       };
       const message: TabEventMessage = {
         type: 'updated',
@@ -83,6 +87,11 @@ export default defineBackground(() => {
       const request = message as AIChatRequest;
       handleAIChatRequest(request);
       sendResponse({ received: true });
+    } else if (message.type === 'ai_chat_abort') {
+      console.log('[Background] Processing AI chat abort');
+      const abortRequest = message as AIChatAbort;
+      handleAIChatAbort(abortRequest);
+      sendResponse({ received: true });
     } else if (message.type === 'content_extract_request') {
       console.log('[Background] Processing content extract request');
       const request = message as ContentExtractRequest;
@@ -91,6 +100,22 @@ export default defineBackground(() => {
     }
     return true;
   });
+
+  // 处理中断请求
+  function handleAIChatAbort(request: AIChatAbort) {
+    const controller = activeRequests.get(request.chatTabId);
+    if (controller && !controller.signal.aborted) {
+      console.log('[Background] Aborting request for chatTabId:', request.chatTabId);
+      controller.abort();
+      activeRequests.delete(request.chatTabId);
+      // 发送中止确认消息给前端
+      const abortedMessage: AIChatAborted = {
+        type: 'ai_chat_aborted',
+        chatTabId: request.chatTabId,
+      };
+      chrome.runtime.sendMessage(abortedMessage).catch(() => {});
+    }
+  }
 
   // 处理内容提取请求 - 使用 scripting API 动态执行
   async function handleContentExtractRequest(
@@ -143,6 +168,16 @@ export default defineBackground(() => {
     const { chatTabId, messages, selectedTabs } = request;
     console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length, tabCount: selectedTabs.length });
 
+    // 如果已有请求在进行，先中断它（仅当尚未中止时）
+    const existingController = activeRequests.get(chatTabId);
+    if (existingController && !existingController.signal.aborted) {
+      existingController.abort();
+    }
+
+    // 创建新的 AbortController
+    const abortController = new AbortController();
+    activeRequests.set(chatTabId, abortController);
+
     // 输出每个标签页的内容情况
     console.log('[Background] Selected tabs content:');
     selectedTabs.forEach((tab, index) => {
@@ -164,6 +199,7 @@ export default defineBackground(() => {
           content: m.content,
           timestamp: Date.now(),
         })),
+        abortSignal: abortController.signal,
         onChunk: (chunk) => {
           console.log('[Background] Received chunk:', chunk.substring(0, 50));
           const chunkMessage: AIChatStreamChunk = {
@@ -174,6 +210,7 @@ export default defineBackground(() => {
           chrome.runtime.sendMessage(chunkMessage).catch(() => {});
         },
         onComplete: (fullText) => {
+          activeRequests.delete(chatTabId);
           const completeMessage: AIChatComplete = {
             type: 'ai_chat_complete',
             chatTabId,
@@ -182,6 +219,7 @@ export default defineBackground(() => {
           chrome.runtime.sendMessage(completeMessage).catch(() => {});
         },
         onError: (error) => {
+          activeRequests.delete(chatTabId);
           const errorMessage: AIChatError = {
             type: 'ai_chat_error',
             chatTabId,
@@ -191,6 +229,17 @@ export default defineBackground(() => {
         },
       });
     } catch (error) {
+      activeRequests.delete(chatTabId);
+      // 如果是中断错误，发送中止确认消息
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[Background] Request was aborted');
+        const abortedMessage: AIChatAborted = {
+          type: 'ai_chat_aborted',
+          chatTabId,
+        };
+        chrome.runtime.sendMessage(abortedMessage).catch(() => {});
+        return;
+      }
       const errorMessage: AIChatError = {
         type: 'ai_chat_error',
         chatTabId,

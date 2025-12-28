@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Globe, Image, LayoutGrid, Plus } from 'lucide-react';
+import { Globe, Image, LayoutGrid, Plus, Square } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/lib/chat-store.tsx';
-import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
+import { safeGetHostname } from '@/lib/utils';
+import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
 
 // 请求提取标签页内容
 async function extractTabContent(tabId: number): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -27,9 +28,9 @@ async function extractTabContent(tabId: number): Promise<{ success: boolean; con
 }
 
 export function ChatInput() {
-  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, updateTabContent, state } = useChatStore();
+  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = isCurrentTabLoading();
   const streamingContentRef = useRef('');
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [tabs, setTabs] = useState<TabInfo[]>([]);
@@ -57,7 +58,7 @@ export function ChatInput() {
         .filter((tab) => Boolean(tab.url))
         .map((tab) => {
           const url = tab.url || '';
-          const hostname = url ? new URL(url).hostname : '';
+          const hostname = safeGetHostname(url);
           return {
             id: tab.id || 0,
             title: tab.title || '未命名标签页',
@@ -85,10 +86,10 @@ export function ChatInput() {
         streamingContentRef.current += message.chunk;
         updateLastMessage(activeTabId!, streamingContentRef.current);
       } else if (message.type === 'ai_chat_complete') {
-        setIsLoading(false);
+        setLoading(activeTabId!, false);
         streamingContentRef.current = '';
       } else if (message.type === 'ai_chat_error') {
-        setIsLoading(false);
+        setLoading(activeTabId!, false);
         streamingContentRef.current = '';
         updateLastMessage(activeTabId!, `错误: ${message.error}`);
       }
@@ -96,7 +97,7 @@ export function ChatInput() {
 
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [activeTabId, updateLastMessage]);
+  }, [activeTabId, updateLastMessage, setLoading]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -147,7 +148,7 @@ export function ChatInput() {
       return;
     }
 
-    setIsLoading(true);
+    setLoading(activeTabId, true);
     const userMessageContent = message.trim();
     setMessage('');
 
@@ -245,6 +246,17 @@ export function ChatInput() {
     }
   };
 
+  const handleAbort = () => {
+    if (activeTabId === null) return;
+    const abortMessage: AIChatAbort = {
+      type: 'ai_chat_abort',
+      chatTabId: activeTabId,
+    };
+    chrome.runtime.sendMessage(abortMessage);
+    setLoading(activeTabId, false);
+    streamingContentRef.current = '';
+  };
+
   const orderedTabs = [
     ...tabs.filter((tab) => tab.id === browserActiveTabId),
     ...tabs.filter((tab) => tab.id !== browserActiveTabId),
@@ -276,31 +288,46 @@ export function ChatInput() {
             className="w-full resize-none bg-transparent px-2 py-2 text-base focus:outline-none placeholder:text-muted-foreground"
           />
           <div className="mt-2 flex items-center gap-2">
-            <Button
-              type="button"
-              onClick={() => {
-                if (!showAttachMenu) {
-                  loadTabs();
-                }
-                setShowAttachMenu((prev) => !prev);
-              }}
-              variant="outline"
-              size="icon"
-              ref={attachButtonRef}
-              className="rounded-full"
-              aria-label="添加内容"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              aria-label="添加图片"
-            >
-              <Image className="h-4 w-4" />
-            </Button>
+            {isLoading ? (
+              <Button
+                type="button"
+                onClick={handleAbort}
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="停止生成"
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!showAttachMenu) {
+                      loadTabs();
+                    }
+                    setShowAttachMenu((prev) => !prev);
+                  }}
+                  variant="outline"
+                  size="icon"
+                  ref={attachButtonRef}
+                  className="rounded-full"
+                  aria-label="添加内容"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full"
+                  aria-label="添加图片"
+                >
+                  <Image className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
         {showAttachMenu ? (

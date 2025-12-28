@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Pin, PinOff, Settings, X } from 'lucide-react';
+import { useChatStore } from '@/lib/chat-store.tsx';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
@@ -8,9 +9,12 @@ interface HeaderProps {
 
 export function Header({ onOpenSettings }: HeaderProps) {
   const [isPinned, setIsPinned] = useState(false);
+  const { state, clearChat } = useChatStore();
 
   const handleNewChat = () => {
-    // TODO: 实现新建对话
+    if (state.activeTabId !== null) {
+      clearChat(state.activeTabId);
+    }
   };
 
   const handleTogglePin = () => {

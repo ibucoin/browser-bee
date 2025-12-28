@@ -9,9 +9,9 @@ export interface AIConfig {
 // 硬编码配置 - 直接用于测试
 // OpenAI 兼容的中转站需要在 baseURL 后加 /v1
 const CONFIG: AIConfig = {
-  baseURL: 'https://kfc-api.sxxe.net/v1',
-  apiKey: 'sk-dj6l5fH7ig0dgqhZe1EbT9JLoTJ1a9BvAX74uBIlG6qUKzmX',
-  model: 'cursor2-claude-4.5-sonnet',
+  baseURL: 'https://api.deepseek.com/v1',
+  apiKey: 'sk-be87b8d92d9241429decdc4d2710f31e',
+  model: 'deepseek-chat',
 };
 
 export async function getAIConfig(): Promise<AIConfig> {

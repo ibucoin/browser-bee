@@ -14,7 +14,9 @@
       "Bash(openspec archive add-tab-isolated-chat:*)",
       "Bash(bun run compile:*)",
       "Bash(cat:*)",
-      "Bash(openspec archive:*)"
+      "Bash(openspec archive:*)",
+      "Bash(tree:*)",
+      "mcp__augment-context-engine__codebase-retrieval"
     ]
   }
 }

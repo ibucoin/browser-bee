@@ -10,7 +10,6 @@ export function Message({ role, content }: MessageProps) {
   const isUser = role === 'user';
 
   if (isUser) {
-    // 用户消息：保持气泡样式，右对齐
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground">

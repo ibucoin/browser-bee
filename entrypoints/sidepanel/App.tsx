@@ -3,10 +3,11 @@ import { Header } from '@/components/header/Header';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ChatStoreProvider, useChatStore } from '@/lib/chat-store.tsx';
+import { safeGetHostname } from '@/lib/utils';
 import { TabEventMessage, TabInfo } from '@/lib/types';
 
 function AppContent() {
-  const { setActiveTab, initTabChat, removeTabChat, updateTabInfo, state } = useChatStore();
+  const { setActiveTab, initTabChat, removeTabChat, updateTabInfo, isCurrentTabLoading, state } = useChatStore();
 
   useEffect(() => {
     // 初始化时获取当前活动 Tab
@@ -18,7 +19,7 @@ function AppContent() {
           title: activeTab.title || '未命名标签页',
           url: activeTab.url || '',
           favicon: activeTab.favIconUrl,
-          hostname: activeTab.url ? new URL(activeTab.url).hostname : '',
+          hostname: safeGetHostname(activeTab.url || ''),
         };
         setActiveTab(activeTab.id);
         initTabChat(activeTab.id, [tabInfo], activeTab.id);
@@ -38,7 +39,7 @@ function AppContent() {
               title: tab.title || '未命名标签页',
               url: tab.url || '',
               favicon: tab.favIconUrl,
-              hostname: tab.url ? new URL(tab.url).hostname : '',
+              hostname: safeGetHostname(tab.url || ''),
             };
             initTabChat(message.tabId, [tabInfo], message.tabId);
           });
@@ -61,7 +62,7 @@ function AppContent() {
     <div className="flex flex-col h-full">
       <Header />
       <div className="flex-1 overflow-y-auto p-3">
-        <ChatContainer />
+        <ChatContainer isLoading={isCurrentTabLoading()} />
       </div>
       <ChatInput />
     </div>

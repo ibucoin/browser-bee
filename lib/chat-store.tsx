@@ -10,6 +10,7 @@ import { TabChat, Message, TabInfo } from './types';
 interface ChatState {
   chats: Record<number, TabChat>;
   activeTabId: number | null;
+  loadingTabIds: Set<number>;
 }
 
 type ChatAction =
@@ -18,6 +19,8 @@ type ChatAction =
   | { type: 'UPDATE_LAST_MESSAGE'; tabId: number; content: string }
   | { type: 'SET_SELECTED_TABS'; tabId: number; tabs: TabInfo[] }
   | { type: 'REMOVE_TAB_CHAT'; tabId: number }
+  | { type: 'CLEAR_CHAT'; tabId: number }
+  | { type: 'SET_LOADING'; tabId: number; loading: boolean }
   | { type: 'INIT_TAB_CHAT'; tabId: number; selectedTabs?: TabInfo[]; boundTabId?: number }
   | { type: 'UPDATE_TAB_INFO'; tabInfo: TabInfo; urlChanged: boolean }
   | { type: 'UPDATE_TAB_CONTENT'; chatTabId: number; browserTabId: number; pageContent: string };
@@ -154,6 +157,35 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     }
 
+    case 'CLEAR_CHAT': {
+      const chat = state.chats[action.tabId];
+      if (!chat) return state;
+      return {
+        ...state,
+        chats: {
+          ...state.chats,
+          [action.tabId]: {
+            ...chat,
+            messages: [],
+            // 设计意图：清空聊天时保留 selectedTabs，允许用户在同一上下文中开始新对话
+          },
+        },
+      };
+    }
+
+    case 'SET_LOADING': {
+      const newLoadingTabIds = new Set(state.loadingTabIds);
+      if (action.loading) {
+        newLoadingTabIds.add(action.tabId);
+      } else {
+        newLoadingTabIds.delete(action.tabId);
+      }
+      return {
+        ...state,
+        loadingTabIds: newLoadingTabIds,
+      };
+    }
+
     case 'UPDATE_TAB_CONTENT': {
       const chat = state.chats[action.chatTabId];
       if (!chat) return state;
@@ -182,6 +214,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 const initialState: ChatState = {
   chats: {},
   activeTabId: null,
+  loadingTabIds: new Set(),
 };
 
 interface ChatContextValue {
@@ -192,9 +225,12 @@ interface ChatContextValue {
   updateLastMessage: (tabId: number, content: string) => void;
   setSelectedTabs: (tabId: number, tabs: TabInfo[]) => void;
   removeTabChat: (tabId: number) => void;
+  clearChat: (tabId: number) => void;
+  setLoading: (tabId: number, loading: boolean) => void;
   updateTabInfo: (tabInfo: TabInfo, urlChanged: boolean) => void;
   updateTabContent: (chatTabId: number, browserTabId: number, pageContent: string) => void;
   getCurrentChat: () => TabChat | null;
+  isCurrentTabLoading: () => boolean;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -226,6 +262,14 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_TAB_CHAT', tabId });
   }, []);
 
+  const clearChat = useCallback((tabId: number) => {
+    dispatch({ type: 'CLEAR_CHAT', tabId });
+  }, []);
+
+  const setLoading = useCallback((tabId: number, loading: boolean) => {
+    dispatch({ type: 'SET_LOADING', tabId, loading });
+  }, []);
+
   const updateTabInfo = useCallback((tabInfo: TabInfo, urlChanged: boolean) => {
     dispatch({ type: 'UPDATE_TAB_INFO', tabInfo, urlChanged });
   }, []);
@@ -239,6 +283,11 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     return state.chats[state.activeTabId] ?? null;
   }, [state.activeTabId, state.chats]);
 
+  const isCurrentTabLoading = useCallback(() => {
+    if (state.activeTabId === null) return false;
+    return state.loadingTabIds.has(state.activeTabId);
+  }, [state.activeTabId, state.loadingTabIds]);
+
   return (
     <ChatContext.Provider
       value={{
@@ -249,9 +298,12 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
         updateLastMessage,
         setSelectedTabs,
         removeTabChat,
+        clearChat,
+        setLoading,
         updateTabInfo,
         updateTabContent,
         getCurrentChat,
+        isCurrentTabLoading,
       }}
     >
       {children}

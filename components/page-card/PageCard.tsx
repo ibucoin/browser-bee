@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Globe, X, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { safeGetHostname } from '@/lib/utils';
 
 interface PageCardProps {
   title: string;
@@ -14,6 +15,7 @@ export function PageCard({ title, url, favicon, pageContent, onClose }: PageCard
   const [expanded, setExpanded] = useState(false);
   const hasContent = Boolean(pageContent);
   const contentPreview = pageContent?.slice(0, 500);
+  const hostname = safeGetHostname(url);
 
   return (
     <div className="group relative flex w-[200px] shrink-0 flex-col rounded-lg bg-muted px-2 py-1.5">
@@ -28,7 +30,7 @@ export function PageCard({ title, url, favicon, pageContent, onClose }: PageCard
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-foreground">{title}</p>
           <div className="flex items-center gap-1">
-            <p className="truncate text-[11px] text-muted-foreground flex-1">{new URL(url).hostname}</p>
+            <p className="truncate text-[11px] text-muted-foreground flex-1">{hostname}</p>
             {hasContent && (
               <Check className="h-3 w-3 text-green-500 shrink-0" />
             )}

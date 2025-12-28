@@ -58,7 +58,18 @@ export interface AIChatError {
   error: string;
 }
 
-export type AIMessage = AIChatRequest | AIChatStreamChunk | AIChatComplete | AIChatError;
+export interface AIChatAbort {
+  type: 'ai_chat_abort';
+  chatTabId: number;
+}
+
+/** 中止确认消息 - 通知前端请求已被成功中止 */
+export interface AIChatAborted {
+  type: 'ai_chat_aborted';
+  chatTabId: number;
+}
+
+export type AIMessage = AIChatRequest | AIChatStreamChunk | AIChatComplete | AIChatError | AIChatAbort | AIChatAborted;
 
 // 页面内容提取相关消息类型
 export interface ContentExtractRequest {
