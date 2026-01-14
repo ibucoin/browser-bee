@@ -16,7 +16,8 @@
       "Bash(cat:*)",
       "Bash(openspec archive:*)",
       "Bash(tree:*)",
-      "mcp__augment-context-engine__codebase-retrieval"
+      "mcp__augment-context-engine__codebase-retrieval",
+      "Bash(bun update:*)"
     ]
   }
 }
