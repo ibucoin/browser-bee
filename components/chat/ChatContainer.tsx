@@ -257,6 +257,13 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
             </div>
           );
         })}
+        {/* AI 响应中的 loading 指示器 */}
+        {isLoading && (
+          <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
+            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm">生成回复中</span>
+          </div>
+        )}
       </div>
       <div ref={bottomRef} />
     </div>
