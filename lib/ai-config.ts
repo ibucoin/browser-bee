@@ -24,22 +24,12 @@ export interface AIConfigStore {
   activePlatformId: string | null;
 }
 
-const DEFAULT_PLATFORMS: ModelPlatform[] = [
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    baseURL: 'https://api.deepseek.com/v1',
-    apiKey: '',
-    enabled: true,
-    models: ['deepseek-chat', 'deepseek-reasoner'],
-    selectedModel: 'deepseek-chat',
-    isCustom: true,
-  },
-];
+// 默认为空配置，需要用户自己添加
+const DEFAULT_PLATFORMS: ModelPlatform[] = [];
 
 const DEFAULT_STORE: AIConfigStore = {
   platforms: DEFAULT_PLATFORMS,
-  activePlatformId: 'deepseek',
+  activePlatformId: null,
 };
 
 const STORAGE_KEY = 'ai-config-store';

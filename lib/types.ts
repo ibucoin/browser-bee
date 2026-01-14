@@ -7,12 +7,22 @@ export interface TabInfo {
   pageContent?: string;  // 页面主体内容（使用 Readability 提取）
 }
 
+// 图片附件
+export interface ImageAttachment {
+  id: string;
+  name: string;
+  type: string;  // MIME type
+  dataUrl: string;  // base64 data URL
+  size: number;  // 文件大小 bytes
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   attachedTabs?: TabInfo[];
+  attachedImages?: ImageAttachment[];  // 图片附件
 }
 
 export interface TabChat {

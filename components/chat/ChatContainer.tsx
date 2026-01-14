@@ -252,6 +252,7 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
               <Message
                 role={message.role as 'user' | 'assistant'}
                 content={message.content}
+                attachedImages={message.attachedImages}
               />
             </div>
           );

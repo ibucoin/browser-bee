@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Globe, Image, LayoutGrid, Plus, Square } from 'lucide-react';
+import { Globe, LayoutGrid, Plus, Square } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/chat/ModelSelector';
@@ -289,6 +289,7 @@ export function ChatInput() {
     <div className="p-3">
       <div className="relative flex flex-col rounded-2xl border border-input bg-background py-1">
         <div className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-visible px-3 pt-2 pb-1">
+          {/* 已选择的标签页 */}
           {selectedTabs.map((tab) => (
             <PageCard
               key={getTabKey(tab)}
@@ -341,15 +342,6 @@ export function ChatInput() {
                     aria-label="添加内容"
                   >
                     <Plus className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="rounded-full"
-                    aria-label="添加图片"
-                  >
-                    <Image className="h-4 w-4" />
                   </Button>
                 </>
               )}

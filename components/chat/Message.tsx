@@ -1,20 +1,38 @@
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
+import { ImageAttachment } from '@/lib/types';
 
 export interface MessageProps {
   role: 'user' | 'assistant';
   content: string;
+  attachedImages?: ImageAttachment[];
 }
 
-export function Message({ role, content }: MessageProps) {
+export function Message({ role, content, attachedImages }: MessageProps) {
   const isUser = role === 'user';
 
   if (isUser) {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-          {content}
-        </div>
+      <div className="flex flex-col items-end gap-2">
+        {/* 图片附件 */}
+        {attachedImages && attachedImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 justify-end max-w-[85%]">
+            {attachedImages.map((img) => (
+              <img
+                key={img.id}
+                src={img.dataUrl}
+                alt={img.name}
+                className="max-h-48 max-w-[200px] rounded-lg object-cover"
+              />
+            ))}
+          </div>
+        )}
+        {/* 文字内容 */}
+        {content && (
+          <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+            {content}
+          </div>
+        )}
       </div>
     );
   }

@@ -834,11 +834,14 @@ export function AISettings({ onClose }: AISettingsProps) {
     }
   }, [selectedPlatformId, store]);
 
-  if (!store || !selectedPlatformId) {
+  if (!store) {
     return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
   }
 
-  const activePlatform = store.platforms.find(p => p.id === selectedPlatformId) || store.platforms[0];
+  // 当没有平台时，显示空状态而不是加载
+  const activePlatform = selectedPlatformId 
+    ? store.platforms.find(p => p.id === selectedPlatformId) 
+    : store.platforms[0];
   
   const filteredPlatforms = store.platforms.filter(p => 
     p.name.toLowerCase().includes(platformSearch.toLowerCase())
@@ -860,6 +863,7 @@ export function AISettings({ onClose }: AISettingsProps) {
   };
 
   const handleTestConnection = async (model: string) => {
+    if (!activePlatform) return;
     setTestingModel(model);
     const startTime = Date.now();
     try {
@@ -985,40 +989,57 @@ export function AISettings({ onClose }: AISettingsProps) {
 
       {/* 右侧详情 */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between p-4 border-b h-[60px]">
-          <div className="flex items-center gap-2">
-            <Server className="h-6 w-6 text-muted-foreground" />
-            <div className="font-semibold text-lg">{activePlatform.name}</div>
-            <button
-              onClick={() => setEditDialog({ isOpen: true, platformId: activePlatform.id, name: activePlatform.name })}
-              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-              title="编辑名称"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            {activePlatform.isCustom && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Custom</span>
-            )}
+        {!activePlatform ? (
+          // 空状态：没有平台时显示提示
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+              <Server className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">暂无 AI 服务配置</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              点击左侧「添加自定义平台」开始配置
+            </p>
+            <Button onClick={handleAddCustomPlatform}>
+              <Plus className="h-4 w-4 mr-2" />
+              添加平台
+            </Button>
           </div>
-          <div className="flex items-center gap-3">
-             <div className="flex items-center gap-2">
-               <span className="text-sm text-muted-foreground">启用</span>
-               <Switch 
-                 checked={store.activePlatformId === activePlatform.id}
-                 onCheckedChange={(checked) => {
-                   if (checked) {
-                     handleActivatePlatform();
-                   }
-                 }}
-               />
-             </div>
-             {onClose && (
-              <Button variant="ghost" size="icon" onClick={onClose} className="ml-2">
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between p-4 border-b h-[60px]">
+              <div className="flex items-center gap-2">
+                <Server className="h-6 w-6 text-muted-foreground" />
+                <div className="font-semibold text-lg">{activePlatform.name}</div>
+                <button
+                  onClick={() => setEditDialog({ isOpen: true, platformId: activePlatform.id, name: activePlatform.name })}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                  title="编辑名称"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                {activePlatform.isCustom && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Custom</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-2">
+                   <span className="text-sm text-muted-foreground">启用</span>
+                   <Switch 
+                     checked={store.activePlatformId === activePlatform.id}
+                     onCheckedChange={(checked) => {
+                       if (checked) {
+                         handleActivatePlatform();
+                       }
+                     }}
+                   />
+                 </div>
+                 {onClose && (
+                  <Button variant="ghost" size="icon" onClick={onClose} className="ml-2">
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* 基本配置 */}
@@ -1208,16 +1229,20 @@ export function AISettings({ onClose }: AISettingsProps) {
             </p>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* 模型选择弹窗 */}
-      <ModelSelectDialog 
-        isOpen={showModelDialog}
-        onClose={() => setShowModelDialog(false)}
-        onSave={(models) => handleUpdatePlatform({ models })}
-        currentModels={activePlatform.models}
-        platform={activePlatform}
-      />
+      {activePlatform && (
+        <ModelSelectDialog 
+          isOpen={showModelDialog}
+          onClose={() => setShowModelDialog(false)}
+          onSave={(models) => handleUpdatePlatform({ models })}
+          currentModels={activePlatform.models}
+          platform={activePlatform}
+        />
+      )}
 
       {/* 右键菜单 */}
       {contextMenu && (
@@ -1257,21 +1282,25 @@ export function AISettings({ onClose }: AISettingsProps) {
       />
 
       {/* 对话测试弹窗 */}
-      <ChatTestDialog
-        isOpen={chatDialog.isOpen}
-        onClose={() => setChatDialog({ isOpen: false, model: '' })}
-        platform={activePlatform}
-        model={chatDialog.model}
-      />
+      {activePlatform && (
+        <ChatTestDialog
+          isOpen={chatDialog.isOpen}
+          onClose={() => setChatDialog({ isOpen: false, model: '' })}
+          platform={activePlatform}
+          model={chatDialog.model}
+        />
+      )}
 
       {/* 并发测试弹窗 */}
-      <BatchTestDialog
-        isOpen={showBatchTestDialog}
-        onClose={() => setShowBatchTestDialog(false)}
-        models={activePlatform.models}
-        platform={activePlatform}
-        onTestComplete={(results) => setTestResults(prev => ({ ...prev, ...results }))}
-      />
+      {activePlatform && (
+        <BatchTestDialog
+          isOpen={showBatchTestDialog}
+          onClose={() => setShowBatchTestDialog(false)}
+          models={activePlatform.models}
+          platform={activePlatform}
+          onTestComplete={(results) => setTestResults(prev => ({ ...prev, ...results }))}
+        />
+      )}
     </div>
   );
 }

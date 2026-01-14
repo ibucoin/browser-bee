@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Pin, PinOff, Settings, X } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store.tsx';
 
 export function Header() {
-  const [isPinned, setIsPinned] = useState(false);
   const { state, clearChat } = useChatStore();
 
   const handleNewChat = () => {
@@ -13,17 +11,8 @@ export function Header() {
     }
   };
 
-  const handleTogglePin = () => {
-    setIsPinned(!isPinned);
-    // TODO: 实现固定/取消固定
-  };
-
-const handleSettings = () => {
+  const handleSettings = () => {
     chrome.runtime.openOptionsPage();
-  };
-
-  const handleClose = () => {
-    window.close();
   };
 
   return (
@@ -34,14 +23,8 @@ const handleSettings = () => {
         </Button>
       </div>
       <div className="flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleTogglePin} title={isPinned ? '取消固定' : '固定'}>
-          {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-        </Button>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSettings} title="设置">
           <Settings className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose} title="关闭">
-          <X className="h-4 w-4" />
         </Button>
       </div>
     </header>
