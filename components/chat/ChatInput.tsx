@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/chat/ModelSelector';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
+import { getAIConfigStore } from '@/lib/ai-config';
 import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
 
 // 请求提取标签页内容
@@ -40,10 +41,31 @@ export function ChatInput() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // 检查配置状态
+  const [isConfigured, setIsConfigured] = useState(true);
 
   const chat = getCurrentChat();
   const selectedTabs = chat?.selectedTabs ?? [];
   const activeTabId = state.activeTabId;
+
+  // 检查是否已配置 provider
+  useEffect(() => {
+    const checkConfig = async () => {
+      const store = await getAIConfigStore();
+      const activePlatform = store.platforms.find(p => p.id === store.activePlatformId);
+      const hasApiKey = !!activePlatform?.apiKey;
+      const hasModels = (activePlatform?.models.length ?? 0) > 0;
+      setIsConfigured(!!activePlatform && hasApiKey && hasModels);
+    };
+    
+    checkConfig();
+    
+    // 监听 storage 变化
+    const handleStorageChange = () => checkConfig();
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -143,9 +165,9 @@ export function ChatInput() {
   };
 
   const handleSend = async () => {
-    console.log('[ChatInput] handleSend called, message:', message, 'activeTabId:', activeTabId, 'isLoading:', isLoading);
-    if (!message.trim() || activeTabId === null || isLoading) {
-      console.log('[ChatInput] Blocked: empty message or no activeTabId or loading');
+    console.log('[ChatInput] handleSend called, message:', message, 'activeTabId:', activeTabId, 'isLoading:', isLoading, 'isConfigured:', isConfigured);
+    if (!message.trim() || activeTabId === null || isLoading || !isConfigured) {
+      console.log('[ChatInput] Blocked: empty message or no activeTabId or loading or not configured');
       return;
     }
 
@@ -284,9 +306,10 @@ export function ChatInput() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息..."
+            placeholder={isConfigured ? "输入消息..." : "请先配置 AI 服务..."}
             rows={1}
-            className="w-full resize-none bg-transparent px-2 py-2 text-base focus:outline-none placeholder:text-muted-foreground"
+            disabled={!isConfigured}
+            className="w-full resize-none bg-transparent px-2 py-2 text-base focus:outline-none placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -296,10 +319,10 @@ export function ChatInput() {
                   onClick={handleAbort}
                   variant="outline"
                   size="icon"
-                  className="rounded-full"
+                  className="h-8 w-8 rounded-full"
                   aria-label="停止生成"
                 >
-                  <Square className="h-3 w-3 fill-current" />
+                  <Square className="h-2.5 w-2.5 fill-current" />
                 </Button>
               ) : (
                 <>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Server, Check } from 'lucide-react';
+import { ChevronDown, Server, Check, AlertCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   AIConfigStore, 
@@ -61,10 +61,18 @@ export function ModelSelector() {
   // 获取当前选中的模型
   const currentModel = activePlatform?.selectedModel || activePlatform?.models[0] || '';
   
+  // 检查配置状态
+  const hasApiKey = !!activePlatform?.apiKey;
+  const hasModels = (activePlatform?.models.length ?? 0) > 0;
+  const isConfigured = activePlatform && hasApiKey && hasModels;
+  
   // 显示文本：平台名/模型名
   const displayText = activePlatform 
-    ? `${activePlatform.name}/${currentModel}` 
+    ? (hasModels ? `${activePlatform.name}/${currentModel}` : `${activePlatform.name}/未选择模型`)
     : '未配置';
+  
+  // 警告状态
+  const showWarning = activePlatform && (!hasApiKey || !hasModels);
 
   const handleSelectPlatform = async (platform: ModelPlatform) => {
     const newStore = { ...store, activePlatformId: platform.id };
@@ -97,14 +105,24 @@ export function ModelSelector() {
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs",
-          "border border-input bg-background hover:bg-muted/50 transition-colors",
-          "max-w-[200px]"
+          "border bg-background hover:bg-muted/50 transition-colors",
+          "max-w-[200px]",
+          showWarning 
+            ? "border-amber-500 text-amber-600 dark:text-amber-400" 
+            : !activePlatform 
+              ? "border-destructive text-destructive"
+              : "border-input"
         )}
       >
-        <Server className="h-3 w-3 text-muted-foreground shrink-0" />
+        {showWarning || !activePlatform ? (
+          <AlertCircle className="h-3 w-3 shrink-0" />
+        ) : (
+          <Server className="h-3 w-3 text-muted-foreground shrink-0" />
+        )}
         <span className="truncate">{displayText}</span>
         <ChevronDown className={cn(
-          "h-3 w-3 text-muted-foreground shrink-0 transition-transform",
+          "h-3 w-3 shrink-0 transition-transform",
+          showWarning || !activePlatform ? "" : "text-muted-foreground",
           isOpen && "rotate-180"
         )} />
       </button>
@@ -119,6 +137,29 @@ export function ModelSelector() {
               选择模型
             </div>
           </div>
+          
+          {/* 配置警告提示 */}
+          {(!activePlatform || !hasApiKey) && (
+            <div className="px-3 py-2 border-b bg-amber-50 dark:bg-amber-900/20">
+              <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <div>
+                  {!activePlatform 
+                    ? "未配置 AI 服务" 
+                    : "请先配置 API Key"}
+                  <button
+                    onClick={() => {
+                      chrome.runtime.openOptionsPage();
+                      setIsOpen(false);
+                    }}
+                    className="ml-1 underline hover:no-underline"
+                  >
+                    去设置
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="max-h-[300px] overflow-y-auto p-1">
             {availablePlatforms.length === 0 ? (

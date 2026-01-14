@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { Message } from './Message';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { TabInfo } from '@/lib/types';
-import { Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { Globe, ChevronDown, ChevronUp, Settings, AlertCircle } from 'lucide-react';
+import { AIConfigStore, getAIConfigStore } from '@/lib/ai-config';
+import { Button } from '@/components/ui/button';
 
 interface ChatContainerProps {
   isLoading?: boolean;
@@ -83,6 +85,35 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<string>('');
   const prevMessageCountRef = useRef<number>(0);
+  
+  // 检查是否配置了 provider
+  const [configStatus, setConfigStatus] = useState<{
+    hasProvider: boolean;
+    hasApiKey: boolean;
+    hasModels: boolean;
+    providerName?: string;
+  }>({ hasProvider: false, hasApiKey: false, hasModels: false });
+
+  useEffect(() => {
+    const checkConfig = async () => {
+      const store = await getAIConfigStore();
+      const activePlatform = store.platforms.find(p => p.id === store.activePlatformId);
+      
+      setConfigStatus({
+        hasProvider: !!activePlatform,
+        hasApiKey: !!activePlatform?.apiKey,
+        hasModels: (activePlatform?.models.length ?? 0) > 0,
+        providerName: activePlatform?.name,
+      });
+    };
+    
+    checkConfig();
+    
+    // 监听 storage 变化
+    const handleStorageChange = () => checkConfig();
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   // 用户发送消息后滚动到底部（消息数量增加时）
   useEffect(() => {
@@ -101,6 +132,93 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading]);
+
+  // 未配置 provider 的提醒
+  const renderConfigWarning = () => {
+    if (!configStatus.hasProvider) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">未配置 AI 服务</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              请先在设置中配置 API 服务才能开始对话
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => chrome.runtime.openOptionsPage()}
+          >
+            <Settings className="h-4 w-4" />
+            打开设置
+          </Button>
+        </div>
+      );
+    }
+
+    if (!configStatus.hasApiKey) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">未配置 API Key</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              请为 <span className="font-medium">{configStatus.providerName}</span> 配置 API Key
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => chrome.runtime.openOptionsPage()}
+          >
+            <Settings className="h-4 w-4" />
+            打开设置
+          </Button>
+        </div>
+      );
+    }
+
+    if (!configStatus.hasModels) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">未选择模型</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              请为 <span className="font-medium">{configStatus.providerName}</span> 选择至少一个模型
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => chrome.runtime.openOptionsPage()}
+          >
+            <Settings className="h-4 w-4" />
+            打开设置
+          </Button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // 配置不完整时显示警告
+  const configWarning = renderConfigWarning();
+  if (configWarning && messages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        {configWarning}
+      </div>
+    );
+  }
 
   if (messages.length === 0) {
     return (
