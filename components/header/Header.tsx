@@ -3,11 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Pin, PinOff, Settings, X } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store.tsx';
 
-interface HeaderProps {
-  onOpenSettings?: () => void;
-}
-
-export function Header({ onOpenSettings }: HeaderProps) {
+export function Header() {
   const [isPinned, setIsPinned] = useState(false);
   const { state, clearChat } = useChatStore();
 
@@ -22,9 +18,8 @@ export function Header({ onOpenSettings }: HeaderProps) {
     // TODO: 实现固定/取消固定
   };
 
-  const handleSettings = () => {
-    console.log('Settings clicked, onOpenSettings:', onOpenSettings);
-    onOpenSettings?.();
+const handleSettings = () => {
+    chrome.runtime.openOptionsPage();
   };
 
   const handleClose = () => {

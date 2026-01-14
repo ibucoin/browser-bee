@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { Globe, Image, LayoutGrid, Plus, Square } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
+import { ModelSelector } from '@/components/chat/ModelSelector';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
@@ -287,47 +288,50 @@ export function ChatInput() {
             rows={1}
             className="w-full resize-none bg-transparent px-2 py-2 text-base focus:outline-none placeholder:text-muted-foreground"
           />
-          <div className="mt-2 flex items-center gap-2">
-            {isLoading ? (
-              <Button
-                type="button"
-                onClick={handleAbort}
-                variant="outline"
-                size="icon"
-                className="rounded-full"
-                aria-label="停止生成"
-              >
-                <Square className="h-3 w-3 fill-current" />
-              </Button>
-            ) : (
-              <>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {isLoading ? (
                 <Button
                   type="button"
-                  onClick={() => {
-                    if (!showAttachMenu) {
-                      loadTabs();
-                    }
-                    setShowAttachMenu((prev) => !prev);
-                  }}
-                  variant="outline"
-                  size="icon"
-                  ref={attachButtonRef}
-                  className="rounded-full"
-                  aria-label="添加内容"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
+                  onClick={handleAbort}
                   variant="outline"
                   size="icon"
                   className="rounded-full"
-                  aria-label="添加图片"
+                  aria-label="停止生成"
                 >
-                  <Image className="h-4 w-4" />
+                  <Square className="h-3 w-3 fill-current" />
                 </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!showAttachMenu) {
+                        loadTabs();
+                      }
+                      setShowAttachMenu((prev) => !prev);
+                    }}
+                    variant="outline"
+                    size="icon"
+                    ref={attachButtonRef}
+                    className="rounded-full"
+                    aria-label="添加内容"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label="添加图片"
+                  >
+                    <Image className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <ModelSelector />
           </div>
         </div>
         {showAttachMenu ? (
