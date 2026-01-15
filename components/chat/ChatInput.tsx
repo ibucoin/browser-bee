@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import { Globe, LayoutGrid, Plus, Square, MousePointer2 } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { ElementCard } from '@/components/element-card/ElementCard';
@@ -53,6 +53,8 @@ export function ChatInput() {
   const [isPickingElement, setIsPickingElement] = useState(false);
   // 用于去重：记录最近处理的元素ID
   const lastProcessedElementIdRef = useRef<string | null>(null);
+  // 用于快捷方式调用：存储最新的 handleSend 函数
+  const handleSendRef = useRef<(msg?: string) => void>(() => {});
 
   const chat = getCurrentChat();
   const selectedTabs = chat?.selectedTabs ?? [];
@@ -131,7 +133,7 @@ export function ChatInput() {
     const handleShortcutSend = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       if (customEvent.detail) {
-        handleSend(customEvent.detail);
+        handleSendRef.current(customEvent.detail);
       }
     };
     window.addEventListener(SHORTCUT_SEND_EVENT, handleShortcutSend);
@@ -155,13 +157,30 @@ export function ChatInput() {
           
           // 获取当前标签页信息来填充元素的 tab 信息
           chrome.tabs.get(browserActiveTabId, (tab) => {
+            if (chrome.runtime.lastError || !tab) return;
+            
             const elementInfo: ElementInfo = {
               ...message.element!,
               tabId: browserActiveTabId,
-              tabTitle: tab?.title || '未知页面',
-              tabUrl: tab?.url || '',
+              tabTitle: tab.title || '未知页面',
+              tabUrl: tab.url || '',
             };
             setSelectedElements(prev => [...prev, elementInfo]);
+            
+            // 如果该标签页不在 selectedTabs 中，自动添加
+            if (activeTabId !== null) {
+              const tabInfo: TabInfo = {
+                id: browserActiveTabId,
+                title: tab.title || '未命名标签页',
+                url: tab.url || '',
+                favicon: tab.favIconUrl,
+                hostname: safeGetHostname(tab.url || ''),
+              };
+              const exists = selectedTabs.some(t => t.id === browserActiveTabId || t.url === tab.url);
+              if (!exists) {
+                setSelectedTabs(activeTabId, [...selectedTabs, tabInfo]);
+              }
+            }
           });
         }
         return;
@@ -189,7 +208,7 @@ export function ChatInput() {
 
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [activeTabId, browserActiveTabId, updateLastMessage, setLoading]);
+  }, [activeTabId, browserActiveTabId, selectedTabs, updateLastMessage, setLoading, setSelectedTabs]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -364,6 +383,9 @@ export function ChatInput() {
       }
     });
   };
+
+  // 更新 ref 以便快捷方式可以调用最新的 handleSend
+  handleSendRef.current = handleSend;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
