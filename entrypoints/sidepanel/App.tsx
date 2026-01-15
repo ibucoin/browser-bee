@@ -8,7 +8,7 @@ import { safeGetHostname } from '@/lib/utils';
 import { TabEventMessage, TabInfo } from '@/lib/types';
 
 function AppContent() {
-  const { setActiveTab, initTabChat, removeTabChat, updateTabInfo, isCurrentTabLoading, state } = useChatStore();
+  const { setActiveTab, initTabChat, removeTabChat, updateBoundTab, isCurrentTabLoading, state } = useChatStore();
 
   useEffect(() => {
     // 初始化时获取当前活动 Tab
@@ -23,7 +23,7 @@ function AppContent() {
           hostname: safeGetHostname(activeTab.url || ''),
         };
         setActiveTab(activeTab.id);
-        initTabChat(activeTab.id, [tabInfo], activeTab.id);
+        initTabChat(activeTab.id, tabInfo);
       }
     });
 
@@ -42,14 +42,14 @@ function AppContent() {
               favicon: tab.favIconUrl,
               hostname: safeGetHostname(tab.url || ''),
             };
-            initTabChat(message.tabId, [tabInfo], message.tabId);
+            initTabChat(message.tabId, tabInfo);
           });
         }
       } else if (message.type === 'removed') {
         removeTabChat(message.tabId);
       } else if (message.type === 'updated' && message.tabInfo) {
         // Tab 更新时，全局更新所有匹配的 TabInfo
-        updateTabInfo(message.tabInfo, message.urlChanged ?? false);
+        updateBoundTab(message.tabInfo);
       }
     };
 
@@ -57,7 +57,7 @@ function AppContent() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [setActiveTab, initTabChat, removeTabChat, updateTabInfo, state.chats]);
+  }, [setActiveTab, initTabChat, removeTabChat, updateBoundTab, state.chats]);
 
   return (
     <div className="flex flex-col h-full">

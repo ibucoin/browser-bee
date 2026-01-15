@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Message } from './Message';
 import { useChatStore } from '@/lib/chat-store.tsx';
-import { TabInfo, ElementInfo } from '@/lib/types';
+import { TabInfo, ElementInfo, Attachment } from '@/lib/types';
 import { Globe, ChevronDown, ChevronUp, Settings, AlertCircle, MousePointer2 } from 'lucide-react';
 import { AIConfigStore, getAIConfigStore } from '@/lib/ai-config';
 import { Button } from '@/components/ui/button';
@@ -10,32 +10,22 @@ interface ChatContainerProps {
   isLoading?: boolean;
 }
 
-// 比较两个标签页数组是否相同
-function isSameTabGroup(tabs1?: TabInfo[], tabs2?: TabInfo[]): boolean {
-  if (!tabs1 && !tabs2) return true;
-  if (!tabs1 || !tabs2) return false;
-  if (tabs1.length !== tabs2.length) return false;
-  const ids1 = tabs1.map(t => t.id).sort();
-  const ids2 = tabs2.map(t => t.id).sort();
-  return ids1.every((id, i) => id === ids2[i]);
-}
-
-// 比较两个元素数组是否相同
-function isSameElementGroup(elements1?: ElementInfo[], elements2?: ElementInfo[]): boolean {
-  if (!elements1 && !elements2) return true;
-  if (!elements1 || !elements2) return false;
-  if (elements1.length !== elements2.length) return false;
-  const ids1 = elements1.map(e => e.id).sort();
-  const ids2 = elements2.map(e => e.id).sort();
-  return ids1.every((id, i) => id === ids2[i]);
-}
-
-// 比较整体上下文是否相同
-function isSameContext(
-  tabs1?: TabInfo[], elements1?: ElementInfo[],
-  tabs2?: TabInfo[], elements2?: ElementInfo[]
-): boolean {
-  return isSameTabGroup(tabs1, tabs2) && isSameElementGroup(elements1, elements2);
+// 比较两个附件数组是否相同
+function isSameAttachments(a1?: Attachment[], a2?: Attachment[]): boolean {
+  if (!a1 && !a2) return true;
+  if (!a1 || !a2) return false;
+  if (a1.length !== a2.length) return false;
+  
+  const getKey = (a: Attachment) => {
+    if (a.type === 'tab') return `tab-${a.data.id}`;
+    if (a.type === 'element') return `element-${a.data.id}`;
+    if (a.type === 'image') return `image-${a.data.id}`;
+    return '';
+  };
+  
+  const keys1 = a1.map(getKey).sort();
+  const keys2 = a2.map(getKey).sort();
+  return keys1.every((k, i) => k === keys2[i]);
 }
 
 // 单个标签页卡片（紧凑版本）
@@ -57,44 +47,6 @@ function TabCard({ tab }: { tab: TabInfo }) {
   );
 }
 
-// 标签页组显示组件（右对齐，显示在用户消息上方）
-function TabGroupIndicator({ tabs }: { tabs: TabInfo[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const showCollapsed = tabs.length > 3;
-  const displayTabs = useMemo(
-    () => (showCollapsed && !expanded ? tabs.slice(0, 3) : tabs),
-    [tabs, showCollapsed, expanded]
-  );
-  const remainingCount = tabs.length - 3;
-
-  return (
-    <div className="flex flex-col items-end gap-1 mb-1">
-      {displayTabs.map((tab) => (
-        <TabCard key={tab.id} tab={tab} />
-      ))}
-      {showCollapsed && !expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="flex items-center gap-1 rounded-xl bg-muted/80 px-3 py-2 text-xs text-muted-foreground hover:bg-muted shadow-sm"
-        >
-          +{remainingCount} 个标签页
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      )}
-      {showCollapsed && expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ChevronUp className="h-3 w-3" />
-          收起
-        </button>
-      )}
-    </div>
-  );
-}
 
 // 单个元素卡片（紧凑版本）
 function ElementCard({ element }: { element: ElementInfo }) {
@@ -115,23 +67,24 @@ function ElementCard({ element }: { element: ElementInfo }) {
   );
 }
 
-// 上下文指示器组件（显示标签页和元素）
-function ContextIndicator({ tabs, elements }: { tabs?: TabInfo[]; elements?: ElementInfo[] }) {
+// 上下文指示器组件（显示附件）
+function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
   const [expanded, setExpanded] = useState(false);
-  const hasTabs = tabs && tabs.length > 0;
-  const hasElements = elements && elements.length > 0;
   
-  if (!hasTabs && !hasElements) return null;
+  if (!attachments || attachments.length === 0) return null;
   
-  const totalItems = (tabs?.length ?? 0) + (elements?.length ?? 0);
+  const tabs = attachments.filter(a => a.type === 'tab').map(a => a.data as TabInfo);
+  const elements = attachments.filter(a => a.type === 'element').map(a => a.data as ElementInfo);
+  
+  const totalItems = attachments.length;
   const showCollapsed = totalItems > 3;
   
   const displayTabs = useMemo(
-    () => (showCollapsed && !expanded ? (tabs ?? []).slice(0, 3) : (tabs ?? [])),
+    () => (showCollapsed && !expanded ? tabs.slice(0, 3) : tabs),
     [tabs, showCollapsed, expanded]
   );
   const displayElements = useMemo(
-    () => (showCollapsed && !expanded ? (elements ?? []).slice(0, Math.max(0, 3 - (tabs?.length ?? 0))) : (elements ?? [])),
+    () => (showCollapsed && !expanded ? elements.slice(0, Math.max(0, 3 - tabs.length)) : elements),
     [elements, tabs, showCollapsed, expanded]
   );
   const remainingCount = totalItems - 3;
@@ -150,7 +103,7 @@ function ContextIndicator({ tabs, elements }: { tabs?: TabInfo[]; elements?: Ele
           onClick={() => setExpanded(true)}
           className="flex items-center gap-1 rounded-xl bg-muted/80 px-3 py-2 text-xs text-muted-foreground hover:bg-muted shadow-sm"
         >
-          +{remainingCount} 个上下文
+          +{remainingCount} 个附件
           <ChevronDown className="h-3 w-3" />
         </button>
       )}
@@ -318,31 +271,28 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
     );
   }
 
-  // 追踪上下文变动
-  let lastTabs: TabInfo[] | undefined = undefined;
-  let lastElements: ElementInfo[] | undefined = undefined;
+  // 追踪附件变动
+  let lastAttachments: Attachment[] | undefined = undefined;
 
   return (
     <div className="space-y-2">
       <div className="space-y-2">
         {messages.map((message) => {
-          // 在用户消息前显示上下文（第一次或变动时）
-          let showContext = false;
-          const hasTabs = message.attachedTabs && message.attachedTabs.length > 0;
-          const hasElements = message.attachedElements && message.attachedElements.length > 0;
+          // 在用户消息前显示附件（第一次或变动时）
+          let showAttachments = false;
+          const hasAttachments = message.attachments && message.attachments.length > 0;
           
-          if (message.role === 'user' && (hasTabs || hasElements)) {
-            if (!isSameContext(message.attachedTabs, message.attachedElements, lastTabs, lastElements)) {
-              showContext = true;
+          if (message.role === 'user' && hasAttachments) {
+            if (!isSameAttachments(message.attachments, lastAttachments)) {
+              showAttachments = true;
             }
-            lastTabs = message.attachedTabs;
-            lastElements = message.attachedElements;
+            lastAttachments = message.attachments;
           }
 
           return (
             <div key={message.id}>
-              {showContext && (
-                <ContextIndicator tabs={message.attachedTabs} elements={message.attachedElements} />
+              {showAttachments && message.attachments && (
+                <AttachmentIndicator attachments={message.attachments} />
               )}
               <Message
                 role={message.role as 'user' | 'assistant'}

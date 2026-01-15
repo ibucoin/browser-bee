@@ -28,21 +28,32 @@ export interface ImageAttachment {
   size: number;  // 文件大小 bytes
 }
 
+// 统一的附件类型
+export type Attachment =
+  | { type: 'tab'; data: TabInfo; isBound?: boolean }    // 网页，isBound 表示是否为绑定的当前页
+  | { type: 'element'; data: ElementInfo }               // 选取的元素
+  | { type: 'image'; data: ImageAttachment };            // 图片
+
+// 附件辅助函数类型
+export type AttachmentType = Attachment['type'];
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  // 发送时附加的上下文快照
+  attachments?: Attachment[];
+  // 兼容旧数据（可选，后续可移除）
   attachedTabs?: TabInfo[];
-  attachedImages?: ImageAttachment[];  // 图片附件
-  attachedElements?: ElementInfo[];    // 选中的元素
+  attachedImages?: ImageAttachment[];
+  attachedElements?: ElementInfo[];
 }
 
 export interface TabChat {
   tabId: number;
   messages: Message[];
-  selectedTabs: TabInfo[];
-  boundTabId: number;
+  attachments: Attachment[];  // 当前的附件列表
 }
 
 export type TabEventType = 'activated' | 'removed' | 'updated';
@@ -60,8 +71,7 @@ export interface AIChatRequest {
   type: 'ai_chat_request';
   chatTabId: number;
   messages: Message[];
-  selectedTabs: TabInfo[];
-  selectedElements?: ElementInfo[];
+  attachments: Attachment[];  // 统一的附件列表
 }
 
 export interface AIChatStreamChunk {

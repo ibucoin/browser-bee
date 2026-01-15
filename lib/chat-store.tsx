@@ -5,7 +5,7 @@ import {
   useCallback,
   ReactNode,
 } from 'react';
-import { TabChat, Message, TabInfo } from './types';
+import { TabChat, Message, TabInfo, Attachment } from './types';
 
 interface ChatState {
   chats: Record<number, TabChat>;
@@ -17,13 +17,27 @@ type ChatAction =
   | { type: 'SET_ACTIVE_TAB'; tabId: number }
   | { type: 'ADD_MESSAGE'; tabId: number; message: Message }
   | { type: 'UPDATE_LAST_MESSAGE'; tabId: number; content: string }
-  | { type: 'SET_SELECTED_TABS'; tabId: number; tabs: TabInfo[] }
+  | { type: 'SET_ATTACHMENTS'; tabId: number; attachments: Attachment[] }
+  | { type: 'ADD_ATTACHMENT'; tabId: number; attachment: Attachment }
+  | { type: 'REMOVE_ATTACHMENT'; tabId: number; attachmentId: string }
   | { type: 'REMOVE_TAB_CHAT'; tabId: number }
   | { type: 'CLEAR_CHAT'; tabId: number }
   | { type: 'SET_LOADING'; tabId: number; loading: boolean }
-  | { type: 'INIT_TAB_CHAT'; tabId: number; selectedTabs?: TabInfo[]; boundTabId?: number }
-  | { type: 'UPDATE_TAB_INFO'; tabInfo: TabInfo; urlChanged: boolean }
+  | { type: 'INIT_TAB_CHAT'; tabId: number; boundTab: TabInfo }
+  | { type: 'UPDATE_BOUND_TAB'; tabInfo: TabInfo }
   | { type: 'UPDATE_TAB_CONTENT'; chatTabId: number; browserTabId: number; pageContent: string };
+
+// 获取附件的唯一标识符
+function getAttachmentId(attachment: Attachment): string {
+  switch (attachment.type) {
+    case 'tab':
+      return `tab-${attachment.data.id}`;
+    case 'element':
+      return `element-${attachment.data.id}`;
+    case 'image':
+      return `image-${attachment.data.id}`;
+  }
+}
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
@@ -32,7 +46,12 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case 'INIT_TAB_CHAT': {
       if (state.chats[action.tabId]) return state;
-      const boundTabId = action.boundTabId ?? action.selectedTabs?.[0]?.id ?? action.tabId;
+      // 初始化时，将当前页面作为绑定的 attachment
+      const boundAttachment: Attachment = {
+        type: 'tab',
+        data: action.boundTab,
+        isBound: true,
+      };
       return {
         ...state,
         chats: {
@@ -40,8 +59,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           [action.tabId]: {
             tabId: action.tabId,
             messages: [],
-            selectedTabs: action.selectedTabs ?? [],
-            boundTabId,
+            attachments: [boundAttachment],
           },
         },
       };
@@ -51,8 +69,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const chat = state.chats[action.tabId] ?? {
         tabId: action.tabId,
         messages: [],
-        selectedTabs: [],
-        boundTabId: action.tabId,
+        attachments: [],
       };
       return {
         ...state,
@@ -84,12 +101,11 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     }
 
-    case 'SET_SELECTED_TABS': {
+    case 'SET_ATTACHMENTS': {
       const chat = state.chats[action.tabId] ?? {
         tabId: action.tabId,
         messages: [],
-        selectedTabs: [],
-        boundTabId: action.tabId,
+        attachments: [],
       };
       return {
         ...state,
@@ -97,49 +113,76 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           ...state.chats,
           [action.tabId]: {
             ...chat,
-            selectedTabs: action.tabs,
+            attachments: action.attachments,
           },
         },
       };
     }
 
-    case 'UPDATE_TAB_INFO': {
+    case 'ADD_ATTACHMENT': {
+      const chat = state.chats[action.tabId];
+      if (!chat) return state;
+      // 检查是否已存在相同的附件
+      const newId = getAttachmentId(action.attachment);
+      const exists = chat.attachments.some(a => getAttachmentId(a) === newId);
+      if (exists) return state;
+      return {
+        ...state,
+        chats: {
+          ...state.chats,
+          [action.tabId]: {
+            ...chat,
+            attachments: [...chat.attachments, action.attachment],
+          },
+        },
+      };
+    }
+
+    case 'REMOVE_ATTACHMENT': {
+      const chat = state.chats[action.tabId];
+      if (!chat) return state;
+      return {
+        ...state,
+        chats: {
+          ...state.chats,
+          [action.tabId]: {
+            ...chat,
+            attachments: chat.attachments.filter(a => getAttachmentId(a) !== action.attachmentId),
+          },
+        },
+      };
+    }
+
+    case 'UPDATE_BOUND_TAB': {
+      // 更新所有聊天中绑定的标签页信息
       const newTabInfo = action.tabInfo;
       const browserTabId = newTabInfo.id;
-      const urlChanged = action.urlChanged;
       const newChats: Record<number, TabChat> = {};
       let hasChanges = false;
 
       for (const [chatId, chat] of Object.entries(state.chats)) {
         const numChatId = Number(chatId);
-        // 检查 boundTabId 是否匹配
-        const isBoundTab = chat.boundTabId === browserTabId;
-        // 检查 selectedTabs 中是否有匹配的
-        const hasMatchingTab = chat.selectedTabs.some((t) => t.id === browserTabId);
+        // 查找绑定的标签页附件
+        const boundTabIndex = chat.attachments.findIndex(
+          a => a.type === 'tab' && a.isBound && a.data.id === browserTabId
+        );
 
-        if (!isBoundTab && !hasMatchingTab) {
+        if (boundTabIndex === -1) {
           newChats[numChatId] = chat;
           continue;
         }
 
         hasChanges = true;
-        let newSelectedTabs = chat.selectedTabs;
-
-        if (hasMatchingTab) {
-          // 更新 selectedTabs 中匹配的 TabInfo
-          newSelectedTabs = chat.selectedTabs.map((t) =>
-            t.id === browserTabId ? newTabInfo : t
-          );
-        }
-
-        if (isBoundTab && !hasMatchingTab && urlChanged) {
-          // boundTab 被删除后，URL 变化了，需要重新添加
-          newSelectedTabs = [...newSelectedTabs, newTabInfo];
-        }
+        const newAttachments = [...chat.attachments];
+        newAttachments[boundTabIndex] = {
+          type: 'tab',
+          data: newTabInfo,
+          isBound: true,
+        };
 
         newChats[numChatId] = {
           ...chat,
-          selectedTabs: newSelectedTabs,
+          attachments: newAttachments,
         };
       }
 
@@ -160,6 +203,10 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'CLEAR_CHAT': {
       const chat = state.chats[action.tabId];
       if (!chat) return state;
+      // 清空聊天时保留绑定的标签页，移除其他附件
+      const boundAttachments = chat.attachments.filter(
+        a => a.type === 'tab' && a.isBound
+      );
       return {
         ...state,
         chats: {
@@ -167,7 +214,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           [action.tabId]: {
             ...chat,
             messages: [],
-            // 设计意图：清空聊天时保留 selectedTabs，允许用户在同一上下文中开始新对话
+            attachments: boundAttachments,
           },
         },
       };
@@ -189,18 +236,22 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'UPDATE_TAB_CONTENT': {
       const chat = state.chats[action.chatTabId];
       if (!chat) return state;
-      const newSelectedTabs = chat.selectedTabs.map((tab) =>
-        tab.id === action.browserTabId
-          ? { ...tab, pageContent: action.pageContent }
-          : tab
-      );
+      const newAttachments = chat.attachments.map((attachment) => {
+        if (attachment.type === 'tab' && attachment.data.id === action.browserTabId) {
+          return {
+            ...attachment,
+            data: { ...attachment.data, pageContent: action.pageContent },
+          };
+        }
+        return attachment;
+      });
       return {
         ...state,
         chats: {
           ...state.chats,
           [action.chatTabId]: {
             ...chat,
-            selectedTabs: newSelectedTabs,
+            attachments: newAttachments,
           },
         },
       };
@@ -220,17 +271,20 @@ const initialState: ChatState = {
 interface ChatContextValue {
   state: ChatState;
   setActiveTab: (tabId: number) => void;
-  initTabChat: (tabId: number, selectedTabs?: TabInfo[], boundTabId?: number) => void;
+  initTabChat: (tabId: number, boundTab: TabInfo) => void;
   addMessage: (tabId: number, message: Message) => void;
   updateLastMessage: (tabId: number, content: string) => void;
-  setSelectedTabs: (tabId: number, tabs: TabInfo[]) => void;
+  setAttachments: (tabId: number, attachments: Attachment[]) => void;
+  addAttachment: (tabId: number, attachment: Attachment) => void;
+  removeAttachment: (tabId: number, attachmentId: string) => void;
   removeTabChat: (tabId: number) => void;
   clearChat: (tabId: number) => void;
   setLoading: (tabId: number, loading: boolean) => void;
-  updateTabInfo: (tabInfo: TabInfo, urlChanged: boolean) => void;
+  updateBoundTab: (tabInfo: TabInfo) => void;
   updateTabContent: (chatTabId: number, browserTabId: number, pageContent: string) => void;
   getCurrentChat: () => TabChat | null;
   isCurrentTabLoading: () => boolean;
+  getAttachmentId: (attachment: Attachment) => string;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -242,8 +296,8 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_ACTIVE_TAB', tabId });
   }, []);
 
-  const initTabChat = useCallback((tabId: number, selectedTabs?: TabInfo[], boundTabId?: number) => {
-    dispatch({ type: 'INIT_TAB_CHAT', tabId, selectedTabs, boundTabId });
+  const initTabChat = useCallback((tabId: number, boundTab: TabInfo) => {
+    dispatch({ type: 'INIT_TAB_CHAT', tabId, boundTab });
   }, []);
 
   const addMessage = useCallback((tabId: number, message: Message) => {
@@ -254,8 +308,16 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_LAST_MESSAGE', tabId, content });
   }, []);
 
-  const setSelectedTabs = useCallback((tabId: number, tabs: TabInfo[]) => {
-    dispatch({ type: 'SET_SELECTED_TABS', tabId, tabs });
+  const setAttachments = useCallback((tabId: number, attachments: Attachment[]) => {
+    dispatch({ type: 'SET_ATTACHMENTS', tabId, attachments });
+  }, []);
+
+  const addAttachment = useCallback((tabId: number, attachment: Attachment) => {
+    dispatch({ type: 'ADD_ATTACHMENT', tabId, attachment });
+  }, []);
+
+  const removeAttachment = useCallback((tabId: number, attachmentId: string) => {
+    dispatch({ type: 'REMOVE_ATTACHMENT', tabId, attachmentId });
   }, []);
 
   const removeTabChat = useCallback((tabId: number) => {
@@ -270,8 +332,8 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_LOADING', tabId, loading });
   }, []);
 
-  const updateTabInfo = useCallback((tabInfo: TabInfo, urlChanged: boolean) => {
-    dispatch({ type: 'UPDATE_TAB_INFO', tabInfo, urlChanged });
+  const updateBoundTab = useCallback((tabInfo: TabInfo) => {
+    dispatch({ type: 'UPDATE_BOUND_TAB', tabInfo });
   }, []);
 
   const updateTabContent = useCallback((chatTabId: number, browserTabId: number, pageContent: string) => {
@@ -296,14 +358,17 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
         initTabChat,
         addMessage,
         updateLastMessage,
-        setSelectedTabs,
+        setAttachments,
+        addAttachment,
+        removeAttachment,
         removeTabChat,
         clearChat,
         setLoading,
-        updateTabInfo,
+        updateBoundTab,
         updateTabContent,
         getCurrentChat,
         isCurrentTabLoading,
+        getAttachmentId,
       }}
     >
       {children}

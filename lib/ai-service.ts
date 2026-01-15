@@ -1,6 +1,6 @@
 import { streamText } from 'ai';
 import { getAIConfig, getChatModel } from './ai-config';
-import { Message, TabInfo, ElementInfo } from './types';
+import { Message, TabInfo, ElementInfo, Attachment } from './types';
 
 export interface ChatRequest {
   messages: Message[];
@@ -15,24 +15,28 @@ export interface ChatRequest {
  */
 export function buildMessagesWithContext(
   messages: Message[],
-  selectedTabs: TabInfo[],
-  selectedElements?: ElementInfo[]
+  attachments: Attachment[]
 ): { role: 'user' | 'assistant' | 'system'; content: string }[] {
   const contextParts: string[] = [];
   
+  // 提取 tab 类型的附件
+  const tabAttachments = attachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
+  // 提取 element 类型的附件
+  const elementAttachments = attachments.filter((a): a is Attachment & { type: 'element' } => a.type === 'element');
+  
   // 添加页面内容上下文
-  const tabContexts = selectedTabs
-    .filter((tab) => tab.pageContent)
-    .map((tab) => `[${tab.title}](${tab.url}):\n${tab.pageContent}`);
+  const tabContexts = tabAttachments
+    .filter((a) => a.data.pageContent)
+    .map((a) => `[${a.data.title}](${a.data.url}):\n${a.data.pageContent}`);
   
   if (tabContexts.length > 0) {
     contextParts.push('## 网页内容\n\n' + tabContexts.join('\n\n---\n\n'));
   }
   
   // 添加选中元素上下文
-  if (selectedElements && selectedElements.length > 0) {
-    const elementContexts = selectedElements.map((el) => 
-      `### <${el.tagName}> 元素\n- 来源: ${el.tabTitle}\n- 选择器: ${el.selector}\n- 内容:\n\`\`\`html\n${el.outerHTML}\n\`\`\``
+  if (elementAttachments.length > 0) {
+    const elementContexts = elementAttachments.map((a) => 
+      `### <${a.data.tagName}> 元素\n- 来源: ${a.data.tabTitle}\n- 选择器: ${a.data.selector}\n- 内容:\n\`\`\`html\n${a.data.outerHTML}\n\`\`\``
     );
     contextParts.push('## 选中的页面元素\n\n' + elementContexts.join('\n\n'));
   }

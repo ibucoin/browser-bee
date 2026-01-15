@@ -8,7 +8,7 @@ import { SHORTCUT_SEND_EVENT } from '@/components/chat/ShortcutBar';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { getAIConfigStore } from '@/lib/ai-config';
-import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse, ElementInfo, ElementPickRequest, ElementPickResponse, ElementPickCancel } from '@/lib/types';
+import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse, ElementInfo, ElementPickRequest, ElementPickResponse, ElementPickCancel, Attachment } from '@/lib/types';
 
 // 请求提取标签页内容
 async function extractTabContent(tabId: number): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -32,7 +32,7 @@ async function extractTabContent(tabId: number): Promise<{ success: boolean; con
 }
 
 export function ChatInput() {
-  const { getCurrentChat, setSelectedTabs, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
+  const { getCurrentChat, addAttachment, removeAttachment, getAttachmentId, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
   const [message, setMessage] = useState('');
   const isLoading = isCurrentTabLoading();
   const streamingContentRef = useRef('');
@@ -47,8 +47,6 @@ export function ChatInput() {
   // 检查配置状态
   const [isConfigured, setIsConfigured] = useState(true);
   
-  // 选中的元素列表
-  const [selectedElements, setSelectedElements] = useState<ElementInfo[]>([]);
   // 元素选择器状态
   const [isPickingElement, setIsPickingElement] = useState(false);
   // 用于去重：记录最近处理的元素ID
@@ -57,7 +55,11 @@ export function ChatInput() {
   const handleSendRef = useRef<(msg?: string) => void>(() => {});
 
   const chat = getCurrentChat();
-  const selectedTabs = chat?.selectedTabs ?? [];
+  const attachments = chat?.attachments ?? [];
+  // 筛选出 tab 类型的附件
+  const tabAttachments = attachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
+  // 筛选出 element 类型的附件
+  const elementAttachments = attachments.filter((a): a is Attachment & { type: 'element' } => a.type === 'element');
   const activeTabId = state.activeTabId;
 
   // 检查是否已配置 provider
@@ -165,10 +167,13 @@ export function ChatInput() {
               tabTitle: tab.title || '未知页面',
               tabUrl: tab.url || '',
             };
-            setSelectedElements(prev => [...prev, elementInfo]);
             
-            // 如果该标签页不在 selectedTabs 中，自动添加
+            // 添加元素到附件
             if (activeTabId !== null) {
+              const elementAttachment: Attachment = { type: 'element', data: elementInfo };
+              addAttachment(activeTabId, elementAttachment);
+              
+              // 如果该标签页不在附件中，自动添加
               const tabInfo: TabInfo = {
                 id: browserActiveTabId,
                 title: tab.title || '未命名标签页',
@@ -176,9 +181,10 @@ export function ChatInput() {
                 favicon: tab.favIconUrl,
                 hostname: safeGetHostname(tab.url || ''),
               };
-              const exists = selectedTabs.some(t => t.id === browserActiveTabId || t.url === tab.url);
+              const exists = tabAttachments.some(t => t.data.id === browserActiveTabId || t.data.url === tab.url);
               if (!exists) {
-                setSelectedTabs(activeTabId, [...selectedTabs, tabInfo]);
+                const tabAttachment: Attachment = { type: 'tab', data: tabInfo };
+                addAttachment(activeTabId, tabAttachment);
               }
             }
           });
@@ -208,7 +214,7 @@ export function ChatInput() {
 
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [activeTabId, browserActiveTabId, selectedTabs, updateLastMessage, setLoading, setSelectedTabs]);
+  }, [activeTabId, browserActiveTabId, tabAttachments, updateLastMessage, setLoading, addAttachment]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -236,25 +242,24 @@ export function ChatInput() {
   const handleAddTab = (tab: TabInfo) => {
     if (activeTabId === null) return;
     const newKey = getTabKey(tab);
-    const exists = selectedTabs.some((item) => getTabKey(item) === newKey);
+    const exists = tabAttachments.some((item) => getTabKey(item.data) === newKey);
     if (exists) return;
 
-    // 只添加 Tab 到列表，不立即提取内容（发送时再提取）
-    setSelectedTabs(activeTabId, [...selectedTabs, tab]);
+    // 添加 Tab 到附件列表
+    const attachment: Attachment = { type: 'tab', data: tab };
+    addAttachment(activeTabId, attachment);
   };
 
   const handleRemoveTab = (tab: TabInfo) => {
     if (activeTabId === null) return;
-    const removeKey = getTabKey(tab);
-    setSelectedTabs(
-      activeTabId,
-      selectedTabs.filter((item) => getTabKey(item) !== removeKey)
-    );
+    const attachmentId = `tab-${tab.id}`;
+    removeAttachment(activeTabId, attachmentId);
   };
 
   // 处理移除选中的元素
   const handleRemoveElement = (elementId: string) => {
-    setSelectedElements(prev => prev.filter(el => el.id !== elementId));
+    if (activeTabId === null) return;
+    removeAttachment(activeTabId, `element-${elementId}`);
   };
 
   // 处理点击选择元素按钮
@@ -292,19 +297,21 @@ export function ChatInput() {
     console.log('[ChatInput] Sending message:', userMessageContent);
 
     const chat = getCurrentChat();
-    const currentSelectedTabs = chat?.selectedTabs ?? [];
+    const currentAttachments = chat?.attachments ?? [];
+    const currentTabAttachments = currentAttachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
 
     // 发送前提取所有未提取内容的标签页
-    const tabsNeedingContent = currentSelectedTabs.filter((tab) => !tab.pageContent);
+    const tabsNeedingContent = currentTabAttachments.filter((a) => !a.data.pageContent);
     console.log('[ChatInput] Tabs needing content extraction:', tabsNeedingContent.length);
-    console.log('[ChatInput] Current selected tabs:', currentSelectedTabs.map(t => ({ id: t.id, title: t.title, hasContent: Boolean(t.pageContent) })));
+    console.log('[ChatInput] Current tab attachments:', currentTabAttachments.map(t => ({ id: t.data.id, title: t.data.title, hasContent: Boolean(t.data.pageContent) })));
 
-    // 收集提取结果，用于直接构建最终的 selectedTabs
+    // 收集提取结果，用于直接构建最终的 attachments
     const extractedContentMap: Record<number, string> = {};
 
     if (tabsNeedingContent.length > 0) {
-      console.log('[ChatInput] Extracting content for tabs:', tabsNeedingContent.map(t => t.title));
-      const extractPromises = tabsNeedingContent.map(async (tab) => {
+      console.log('[ChatInput] Extracting content for tabs:', tabsNeedingContent.map(t => t.data.title));
+      const extractPromises = tabsNeedingContent.map(async (tabAttachment) => {
+        const tab = tabAttachment.data;
         console.log('[ChatInput] Starting extraction for tab:', tab.id, tab.title);
         const result = await extractTabContent(tab.id);
         console.log('[ChatInput] Extraction result for tab', tab.id, ':', {
@@ -324,38 +331,33 @@ export function ChatInput() {
       await Promise.all(extractPromises);
     }
 
-    // 直接基于 currentSelectedTabs 和提取结果构建最终的 tabs 列表
+    // 直接基于 currentAttachments 和提取结果构建最终的 attachments 列表
     // 不依赖 store 的异步更新
-    const updatedSelectedTabs = currentSelectedTabs.map(tab => {
-      // 如果本次提取了新内容，使用新内容；否则保留原有的 pageContent
-      const newContent = extractedContentMap[tab.id];
-      if (newContent) {
-        return { ...tab, pageContent: newContent };
+    const updatedAttachments: Attachment[] = currentAttachments.map(attachment => {
+      if (attachment.type === 'tab') {
+        // 如果本次提取了新内容，使用新内容；否则保留原有的 pageContent
+        const newContent = extractedContentMap[attachment.data.id];
+        if (newContent) {
+          return { ...attachment, data: { ...attachment.data, pageContent: newContent } };
+        }
       }
-      return tab;
+      return attachment;
     });
-    console.log('[ChatInput] Updated selected tabs after extraction:', updatedSelectedTabs.map(t => ({
-      id: t.id,
-      title: t.title,
-      hasContent: Boolean(t.pageContent),
-      contentLength: t.pageContent?.length ?? 0
-    })));
+    console.log('[ChatInput] Updated attachments after extraction:', updatedAttachments.map(a => {
+      if (a.type === 'tab') {
+        return { type: 'tab', id: a.data.id, title: a.data.title, hasContent: Boolean(a.data.pageContent), contentLength: a.data.pageContent?.length ?? 0 };
+      }
+      return { type: a.type };
+    }));
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: userMessageContent,
       timestamp: Date.now(),
-      attachedTabs: updatedSelectedTabs.length > 0 ? [...updatedSelectedTabs] : undefined,
-      attachedElements: selectedElements.length > 0 ? [...selectedElements] : undefined,
+      attachments: updatedAttachments.length > 0 ? [...updatedAttachments] : undefined,
     };
     addMessage(activeTabId, userMessage);
-    
-    // 保存选中元素用于发送请求（发送前保存，因为后面会清空）
-    const elementsToSend = [...selectedElements];
-    
-    // 清空已选元素（发送后清空）
-    setSelectedElements([]);
 
     // 创建空的 assistant 消息用于流式更新
     const assistantMessage: Message = {
@@ -372,8 +374,7 @@ export function ChatInput() {
       type: 'ai_chat_request',
       chatTabId: activeTabId,
       messages: allMessages,
-      selectedTabs: updatedSelectedTabs,
-      selectedElements: elementsToSend.length > 0 ? elementsToSend : undefined,
+      attachments: updatedAttachments,
     };
     console.log('[ChatInput] Sending request to background:', request);
     chrome.runtime.sendMessage(request, (response) => {
@@ -415,22 +416,22 @@ export function ChatInput() {
       <div className="relative flex flex-col rounded-2xl border border-input bg-background py-1">
         <div className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-visible px-3 pt-2 pb-1">
           {/* 已选择的标签页 */}
-          {selectedTabs.map((tab) => (
+          {tabAttachments.filter(a => !a.isBound).map((tabAttachment) => (
             <PageCard
-              key={getTabKey(tab)}
-              title={tab.title}
-              url={tab.url}
-              favicon={tab.favicon}
-              pageContent={tab.pageContent}
-              onClose={() => handleRemoveTab(tab)}
+              key={getTabKey(tabAttachment.data)}
+              title={tabAttachment.data.title}
+              url={tabAttachment.data.url}
+              favicon={tabAttachment.data.favicon}
+              pageContent={tabAttachment.data.pageContent}
+              onClose={() => handleRemoveTab(tabAttachment.data)}
             />
           ))}
           {/* 已选择的元素 */}
-          {selectedElements.map((element) => (
+          {elementAttachments.map((elementAttachment) => (
             <ElementCard
-              key={element.id}
-              element={element}
-              onClose={() => handleRemoveElement(element.id)}
+              key={elementAttachment.data.id}
+              element={elementAttachment.data}
+              onClose={() => handleRemoveElement(elementAttachment.data.id)}
             />
           ))}
         </div>

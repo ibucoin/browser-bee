@@ -1,4 +1,4 @@
-import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, AIChatAborted, ContentExtractRequest, ContentExtractResponse, ElementPickRequest, ElementPickResponse, ElementPickCancel } from '@/lib/types';
+import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, AIChatAborted, ContentExtractRequest, ContentExtractResponse, ElementPickRequest, ElementPickResponse, ElementPickCancel, Attachment } from '@/lib/types';
 import { streamChat, buildMessagesWithContext } from '@/lib/ai-service';
 import { safeGetHostname } from '@/lib/utils';
 
@@ -219,8 +219,10 @@ export default defineBackground(() => {
   }
 
   async function handleAIChatRequest(request: AIChatRequest) {
-    const { chatTabId, messages, selectedTabs, selectedElements } = request;
-    console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length, tabCount: selectedTabs.length, elementCount: selectedElements?.length ?? 0 });
+    const { chatTabId, messages, attachments } = request;
+    const tabAttachments = attachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
+    const elementAttachments = attachments.filter((a): a is Attachment & { type: 'element' } => a.type === 'element');
+    console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length, tabCount: tabAttachments.length, elementCount: elementAttachments.length });
 
     // 如果已有请求在进行，先中断它（仅当尚未中止时）
     const existingController = activeRequests.get(chatTabId);
@@ -233,8 +235,9 @@ export default defineBackground(() => {
     activeRequests.set(chatTabId, abortController);
 
     // 输出每个标签页的内容情况
-    console.log('[Background] Selected tabs content:');
-    selectedTabs.forEach((tab, index) => {
+    console.log('[Background] Tab attachments content:');
+    tabAttachments.forEach((tabAttachment, index) => {
+      const tab = tabAttachment.data;
       console.log(`[Background] Tab ${index + 1}: "${tab.title}" - pageContent length: ${tab.pageContent?.length ?? 0}`);
       if (tab.pageContent) {
         console.log(`[Background] Tab ${index + 1} content preview:`, tab.pageContent.substring(0, 500));
@@ -242,7 +245,7 @@ export default defineBackground(() => {
     });
 
     // 构建包含页面上下文的消息
-    const messagesWithContext = buildMessagesWithContext(messages, selectedTabs, selectedElements);
+    const messagesWithContext = buildMessagesWithContext(messages, attachments);
     console.log('[Background] Messages with context:', JSON.stringify(messagesWithContext, null, 2));
 
     try {
