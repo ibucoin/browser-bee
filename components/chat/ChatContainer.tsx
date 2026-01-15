@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Message } from './Message';
 import { useChatStore } from '@/lib/chat-store.tsx';
-import { TabInfo } from '@/lib/types';
-import { Globe, ChevronDown, ChevronUp, Settings, AlertCircle } from 'lucide-react';
+import { TabInfo, ElementInfo } from '@/lib/types';
+import { Globe, ChevronDown, ChevronUp, Settings, AlertCircle, MousePointer2 } from 'lucide-react';
 import { AIConfigStore, getAIConfigStore } from '@/lib/ai-config';
 import { Button } from '@/components/ui/button';
 
@@ -18,6 +18,24 @@ function isSameTabGroup(tabs1?: TabInfo[], tabs2?: TabInfo[]): boolean {
   const ids1 = tabs1.map(t => t.id).sort();
   const ids2 = tabs2.map(t => t.id).sort();
   return ids1.every((id, i) => id === ids2[i]);
+}
+
+// 比较两个元素数组是否相同
+function isSameElementGroup(elements1?: ElementInfo[], elements2?: ElementInfo[]): boolean {
+  if (!elements1 && !elements2) return true;
+  if (!elements1 || !elements2) return false;
+  if (elements1.length !== elements2.length) return false;
+  const ids1 = elements1.map(e => e.id).sort();
+  const ids2 = elements2.map(e => e.id).sort();
+  return ids1.every((id, i) => id === ids2[i]);
+}
+
+// 比较整体上下文是否相同
+function isSameContext(
+  tabs1?: TabInfo[], elements1?: ElementInfo[],
+  tabs2?: TabInfo[], elements2?: ElementInfo[]
+): boolean {
+  return isSameTabGroup(tabs1, tabs2) && isSameElementGroup(elements1, elements2);
 }
 
 // 单个标签页卡片（紧凑版本）
@@ -61,6 +79,78 @@ function TabGroupIndicator({ tabs }: { tabs: TabInfo[] }) {
           className="flex items-center gap-1 rounded-xl bg-muted/80 px-3 py-2 text-xs text-muted-foreground hover:bg-muted shadow-sm"
         >
           +{remainingCount} 个标签页
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      )}
+      {showCollapsed && expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ChevronUp className="h-3 w-3" />
+          收起
+        </button>
+      )}
+    </div>
+  );
+}
+
+// 单个元素卡片（紧凑版本）
+function ElementCard({ element }: { element: ElementInfo }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-2 shadow-sm">
+      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-background overflow-hidden">
+        <MousePointer2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground max-w-[140px]">
+          &lt;{element.tagName}&gt;
+        </p>
+        <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+          {element.textContent.slice(0, 30) || element.selector}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// 上下文指示器组件（显示标签页和元素）
+function ContextIndicator({ tabs, elements }: { tabs?: TabInfo[]; elements?: ElementInfo[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasTabs = tabs && tabs.length > 0;
+  const hasElements = elements && elements.length > 0;
+  
+  if (!hasTabs && !hasElements) return null;
+  
+  const totalItems = (tabs?.length ?? 0) + (elements?.length ?? 0);
+  const showCollapsed = totalItems > 3;
+  
+  const displayTabs = useMemo(
+    () => (showCollapsed && !expanded ? (tabs ?? []).slice(0, 3) : (tabs ?? [])),
+    [tabs, showCollapsed, expanded]
+  );
+  const displayElements = useMemo(
+    () => (showCollapsed && !expanded ? (elements ?? []).slice(0, Math.max(0, 3 - (tabs?.length ?? 0))) : (elements ?? [])),
+    [elements, tabs, showCollapsed, expanded]
+  );
+  const remainingCount = totalItems - 3;
+
+  return (
+    <div className="flex flex-col items-end gap-1 mb-1">
+      {displayTabs.map((tab) => (
+        <TabCard key={`tab-${tab.id}`} tab={tab} />
+      ))}
+      {displayElements.map((element) => (
+        <ElementCard key={`el-${element.id}`} element={element} />
+      ))}
+      {showCollapsed && !expanded && remainingCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex items-center gap-1 rounded-xl bg-muted/80 px-3 py-2 text-xs text-muted-foreground hover:bg-muted shadow-sm"
+        >
+          +{remainingCount} 个上下文
           <ChevronDown className="h-3 w-3" />
         </button>
       )}
@@ -228,26 +318,31 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
     );
   }
 
-  // 追踪标签页组变动
-  let lastTabGroup: TabInfo[] | undefined = undefined;
+  // 追踪上下文变动
+  let lastTabs: TabInfo[] | undefined = undefined;
+  let lastElements: ElementInfo[] | undefined = undefined;
 
   return (
     <div className="space-y-2">
       <div className="space-y-2">
         {messages.map((message) => {
-          // 在用户消息前显示标签页组（第一次或变动时）
-          let showTabGroup = false;
-          if (message.role === 'user' && message.attachedTabs && message.attachedTabs.length > 0) {
-            if (!isSameTabGroup(message.attachedTabs, lastTabGroup)) {
-              showTabGroup = true;
+          // 在用户消息前显示上下文（第一次或变动时）
+          let showContext = false;
+          const hasTabs = message.attachedTabs && message.attachedTabs.length > 0;
+          const hasElements = message.attachedElements && message.attachedElements.length > 0;
+          
+          if (message.role === 'user' && (hasTabs || hasElements)) {
+            if (!isSameContext(message.attachedTabs, message.attachedElements, lastTabs, lastElements)) {
+              showContext = true;
             }
-            lastTabGroup = message.attachedTabs;
+            lastTabs = message.attachedTabs;
+            lastElements = message.attachedElements;
           }
 
           return (
             <div key={message.id}>
-              {showTabGroup && message.attachedTabs && (
-                <TabGroupIndicator tabs={message.attachedTabs} />
+              {showContext && (
+                <ContextIndicator tabs={message.attachedTabs} elements={message.attachedElements} />
               )}
               <Message
                 role={message.role as 'user' | 'assistant'}

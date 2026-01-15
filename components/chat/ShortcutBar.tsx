@@ -61,7 +61,7 @@ export function ShortcutBar({ disabled }: ShortcutBarProps) {
   }
 
   return (
-    <div className="absolute bottom-3 right-3 z-10">
+    <div className="sticky bottom-0 right-0 z-10 flex justify-end pointer-events-none">
       {/* 悬浮按钮 */}
       <button
         ref={buttonRef}
@@ -69,7 +69,7 @@ export function ShortcutBar({ disabled }: ShortcutBarProps) {
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-full transition-all shadow-lg',
+          'flex h-10 w-10 items-center justify-center rounded-full transition-all shadow-lg pointer-events-auto',
           'bg-primary text-primary-foreground hover:bg-primary/90',
           disabled && 'opacity-50 cursor-not-allowed'
         )}
@@ -82,7 +82,7 @@ export function ShortcutBar({ disabled }: ShortcutBarProps) {
       {isOpen && (
         <div
           ref={menuRef}
-          className="absolute bottom-full mb-2 right-0 z-20 w-64 max-h-72 overflow-y-auto rounded-lg border bg-background shadow-lg"
+          className="absolute bottom-full mb-2 right-0 z-20 w-64 max-h-72 overflow-y-auto rounded-lg border bg-background shadow-lg pointer-events-auto"
         >
           <div className="sticky top-0 bg-background border-b px-3 py-2">
             <span className="text-sm font-medium">
