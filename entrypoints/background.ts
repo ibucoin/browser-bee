@@ -1,4 +1,4 @@
-import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, AIChatAborted, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
+import { TabEventMessage, TabInfo, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, AIChatAborted, ContentExtractRequest, ContentExtractResponse, ElementPickRequest, ElementPickResponse, ElementPickCancel } from '@/lib/types';
 import { streamChat, buildMessagesWithContext } from '@/lib/ai-service';
 import { safeGetHostname } from '@/lib/utils';
 
@@ -97,6 +97,15 @@ export default defineBackground(() => {
       const request = message as ContentExtractRequest;
       handleContentExtractRequest(request, sendResponse);
       return true; // 保持消息通道开放
+    } else if (message.type === 'element_pick_request') {
+      console.log('[Background] Processing element pick request');
+      const request = message as ElementPickRequest;
+      handleElementPickRequest(request, sendResponse);
+      return true; // 保持消息通道开放
+    } else if (message.type === 'element_pick_response' || message.type === 'element_pick_cancel') {
+      // 转发来自 content script 的响应到 sidepanel
+      chrome.runtime.sendMessage(message).catch(() => {});
+      sendResponse({ received: true });
     }
     return true;
   });
@@ -164,9 +173,33 @@ export default defineBackground(() => {
     }
   }
 
+  // 处理元素选择请求
+  async function handleElementPickRequest(
+    request: ElementPickRequest,
+    sendResponse: (response: { received: boolean }) => void
+  ) {
+    try {
+      console.log('[Background] Starting element picker for tab:', request.tabId);
+      // 向目标标签页发送启动选择器的消息
+      await chrome.tabs.sendMessage(request.tabId, { type: 'element_pick_start' });
+      sendResponse({ received: true });
+    } catch (error) {
+      console.error('[Background] Element pick error:', error);
+      // 发送错误响应
+      const errorResponse: ElementPickResponse = {
+        type: 'element_pick_response',
+        tabId: request.tabId,
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to start element picker',
+      };
+      chrome.runtime.sendMessage(errorResponse).catch(() => {});
+      sendResponse({ received: false });
+    }
+  }
+
   async function handleAIChatRequest(request: AIChatRequest) {
-    const { chatTabId, messages, selectedTabs } = request;
-    console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length, tabCount: selectedTabs.length });
+    const { chatTabId, messages, selectedTabs, selectedElements } = request;
+    console.log('[Background] handleAIChatRequest called with:', { chatTabId, messageCount: messages.length, tabCount: selectedTabs.length, elementCount: selectedElements?.length ?? 0 });
 
     // 如果已有请求在进行，先中断它（仅当尚未中止时）
     const existingController = activeRequests.get(chatTabId);
@@ -188,7 +221,7 @@ export default defineBackground(() => {
     });
 
     // 构建包含页面上下文的消息
-    const messagesWithContext = buildMessagesWithContext(messages, selectedTabs);
+    const messagesWithContext = buildMessagesWithContext(messages, selectedTabs, selectedElements);
     console.log('[Background] Messages with context:', JSON.stringify(messagesWithContext, null, 2));
 
     try {

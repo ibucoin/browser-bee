@@ -7,6 +7,18 @@ export interface TabInfo {
   pageContent?: string;  // 页面主体内容（使用 Readability 提取）
 }
 
+// 选中的元素信息
+export interface ElementInfo {
+  id: string;           // 唯一标识符
+  tagName: string;      // 元素标签名
+  selector: string;     // CSS 选择器（用于定位）
+  outerHTML: string;    // 元素完整 HTML
+  textContent: string;  // 元素文本内容
+  tabId: number;        // 所属标签页 ID
+  tabTitle: string;     // 所属标签页标题
+  tabUrl: string;       // 所属标签页 URL
+}
+
 // 图片附件
 export interface ImageAttachment {
   id: string;
@@ -23,6 +35,7 @@ export interface Message {
   timestamp: number;
   attachedTabs?: TabInfo[];
   attachedImages?: ImageAttachment[];  // 图片附件
+  attachedElements?: ElementInfo[];    // 选中的元素
 }
 
 export interface TabChat {
@@ -48,6 +61,7 @@ export interface AIChatRequest {
   chatTabId: number;
   messages: Message[];
   selectedTabs: TabInfo[];
+  selectedElements?: ElementInfo[];
 }
 
 export interface AIChatStreamChunk {
@@ -97,3 +111,24 @@ export interface ContentExtractResponse {
 }
 
 export type ContentMessage = ContentExtractRequest | ContentExtractResponse;
+
+// 元素选择相关消息类型
+export interface ElementPickRequest {
+  type: 'element_pick_request';
+  tabId: number;
+}
+
+export interface ElementPickResponse {
+  type: 'element_pick_response';
+  tabId: number;
+  success: boolean;
+  element?: Omit<ElementInfo, 'tabId' | 'tabTitle' | 'tabUrl'>;
+  error?: string;
+}
+
+export interface ElementPickCancel {
+  type: 'element_pick_cancel';
+  tabId: number;
+}
+
+export type ElementMessage = ElementPickRequest | ElementPickResponse | ElementPickCancel;

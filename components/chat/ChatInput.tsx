@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Globe, LayoutGrid, Plus, Square } from 'lucide-react';
+import { Globe, LayoutGrid, Plus, Square, MousePointer2 } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
+import { ElementCard } from '@/components/element-card/ElementCard';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/chat/ModelSelector';
 import { SHORTCUT_SEND_EVENT } from '@/components/chat/ShortcutBar';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { getAIConfigStore } from '@/lib/ai-config';
-import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse } from '@/lib/types';
+import { TabInfo, Message, AIChatRequest, AIChatStreamChunk, AIChatComplete, AIChatError, AIChatAbort, ContentExtractRequest, ContentExtractResponse, ElementInfo, ElementPickRequest, ElementPickResponse, ElementPickCancel } from '@/lib/types';
 
 // 请求提取标签页内容
 async function extractTabContent(tabId: number): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -45,6 +46,11 @@ export function ChatInput() {
   
   // 检查配置状态
   const [isConfigured, setIsConfigured] = useState(true);
+  
+  // 选中的元素列表
+  const [selectedElements, setSelectedElements] = useState<ElementInfo[]>([]);
+  // 元素选择器状态
+  const [isPickingElement, setIsPickingElement] = useState(false);
 
   const chat = getCurrentChat();
   const selectedTabs = chat?.selectedTabs ?? [];
@@ -115,8 +121,31 @@ export function ChatInput() {
 
   // 监听来自 background 的 AI 响应消息
   useEffect(() => {
-    const handleMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError) => {
-      if (message.chatTabId !== activeTabId) return;
+    const handleMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError | ElementPickResponse | ElementPickCancel) => {
+      // 处理元素选择响应
+      if (message.type === 'element_pick_response') {
+        setIsPickingElement(false);
+        if (message.success && message.element && browserActiveTabId !== null) {
+          // 获取当前标签页信息来填充元素的 tab 信息
+          chrome.tabs.get(browserActiveTabId, (tab) => {
+            const elementInfo: ElementInfo = {
+              ...message.element!,
+              tabId: browserActiveTabId,
+              tabTitle: tab?.title || '未知页面',
+              tabUrl: tab?.url || '',
+            };
+            setSelectedElements(prev => [...prev, elementInfo]);
+          });
+        }
+        return;
+      }
+      
+      if (message.type === 'element_pick_cancel') {
+        setIsPickingElement(false);
+        return;
+      }
+
+      if ((message as AIChatStreamChunk).chatTabId !== activeTabId) return;
 
       if (message.type === 'ai_chat_chunk') {
         streamingContentRef.current += message.chunk;
@@ -133,7 +162,7 @@ export function ChatInput() {
 
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [activeTabId, updateLastMessage, setLoading]);
+  }, [activeTabId, browserActiveTabId, updateLastMessage, setLoading]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -175,6 +204,31 @@ export function ChatInput() {
       activeTabId,
       selectedTabs.filter((item) => getTabKey(item) !== removeKey)
     );
+  };
+
+  // 处理移除选中的元素
+  const handleRemoveElement = (elementId: string) => {
+    setSelectedElements(prev => prev.filter(el => el.id !== elementId));
+  };
+
+  // 处理点击选择元素按钮
+  const handlePickElement = async () => {
+    if (browserActiveTabId === null || isPickingElement) return;
+    
+    setIsPickingElement(true);
+    setShowAttachMenu(false);
+    
+    const request: ElementPickRequest = {
+      type: 'element_pick_request',
+      tabId: browserActiveTabId,
+    };
+    
+    chrome.runtime.sendMessage(request, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[ChatInput] Element pick error:', chrome.runtime.lastError);
+        setIsPickingElement(false);
+      }
+    });
   };
 
   const handleSend = async (messageToSend?: string) => {
@@ -247,8 +301,15 @@ export function ChatInput() {
       content: userMessageContent,
       timestamp: Date.now(),
       attachedTabs: updatedSelectedTabs.length > 0 ? [...updatedSelectedTabs] : undefined,
+      attachedElements: selectedElements.length > 0 ? [...selectedElements] : undefined,
     };
     addMessage(activeTabId, userMessage);
+    
+    // 保存选中元素用于发送请求（发送前保存，因为后面会清空）
+    const elementsToSend = [...selectedElements];
+    
+    // 清空已选元素（发送后清空）
+    setSelectedElements([]);
 
     // 创建空的 assistant 消息用于流式更新
     const assistantMessage: Message = {
@@ -266,6 +327,7 @@ export function ChatInput() {
       chatTabId: activeTabId,
       messages: allMessages,
       selectedTabs: updatedSelectedTabs,
+      selectedElements: elementsToSend.length > 0 ? elementsToSend : undefined,
     };
     console.log('[ChatInput] Sending request to background:', request);
     chrome.runtime.sendMessage(request, (response) => {
@@ -312,6 +374,14 @@ export function ChatInput() {
               favicon={tab.favicon}
               pageContent={tab.pageContent}
               onClose={() => handleRemoveTab(tab)}
+            />
+          ))}
+          {/* 已选择的元素 */}
+          {selectedElements.map((element) => (
+            <ElementCard
+              key={element.id}
+              element={element}
+              onClose={() => handleRemoveElement(element.id)}
             />
           ))}
         </div>
@@ -370,6 +440,28 @@ export function ChatInput() {
             ref={attachMenuRef}
             className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-visible rounded-xl border border-input bg-background p-3 shadow-lg"
           >
+            {/* 选择元素按钮 */}
+            <button
+              type="button"
+              onClick={handlePickElement}
+              disabled={isPickingElement || browserActiveTabId === null}
+              className="flex w-full items-center gap-2 rounded-md px-1 py-2 text-left hover:bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-purple-100 dark:bg-purple-900/50">
+                <MousePointer2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-foreground">
+                  {isPickingElement ? '选择中...' : '选择页面元素'}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  点击页面上的元素添加为上下文
+                </div>
+              </div>
+            </button>
+
+            <div className="my-2 border-t border-input" />
+
             <div className="flex items-center gap-2 text-muted-foreground">
               <div className="flex h-7 w-7 items-center justify-center rounded bg-muted/60">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />

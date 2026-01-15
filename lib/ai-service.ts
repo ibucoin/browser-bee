@@ -1,6 +1,6 @@
 import { streamText } from 'ai';
 import { getAIConfig, getChatModel } from './ai-config';
-import { Message, TabInfo } from './types';
+import { Message, TabInfo, ElementInfo } from './types';
 
 export interface ChatRequest {
   messages: Message[];
@@ -15,19 +15,35 @@ export interface ChatRequest {
  */
 export function buildMessagesWithContext(
   messages: Message[],
-  selectedTabs: TabInfo[]
+  selectedTabs: TabInfo[],
+  selectedElements?: ElementInfo[]
 ): { role: 'user' | 'assistant' | 'system'; content: string }[] {
-  const contextParts = selectedTabs
+  const contextParts: string[] = [];
+  
+  // 添加页面内容上下文
+  const tabContexts = selectedTabs
     .filter((tab) => tab.pageContent)
     .map((tab) => `[${tab.title}](${tab.url}):\n${tab.pageContent}`);
+  
+  if (tabContexts.length > 0) {
+    contextParts.push('## 网页内容\n\n' + tabContexts.join('\n\n---\n\n'));
+  }
+  
+  // 添加选中元素上下文
+  if (selectedElements && selectedElements.length > 0) {
+    const elementContexts = selectedElements.map((el) => 
+      `### <${el.tagName}> 元素\n- 来源: ${el.tabTitle}\n- 选择器: ${el.selector}\n- 内容:\n\`\`\`html\n${el.outerHTML}\n\`\`\``
+    );
+    contextParts.push('## 选中的页面元素\n\n' + elementContexts.join('\n\n'));
+  }
 
   const coreMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
 
-  // 如果有页面内容，添加系统提示
+  // 如果有上下文，添加系统提示
   if (contextParts.length > 0) {
     coreMessages.push({
       role: 'system',
-      content: `以下是用户提供的网页内容作为上下文：\n\n${contextParts.join('\n\n---\n\n')}`,
+      content: `以下是用户提供的上下文信息：\n\n${contextParts.join('\n\n---\n\n')}`,
     });
   }
 
