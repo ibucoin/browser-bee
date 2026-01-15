@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Header } from '@/components/header/Header';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { ShortcutBar } from '@/components/chat/ShortcutBar';
 import { ChatStoreProvider, useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { TabEventMessage, TabInfo } from '@/lib/types';
@@ -61,8 +62,9 @@ function AppContent() {
   return (
     <div className="flex flex-col h-full">
       <Header />
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-3 relative">
         <ChatContainer isLoading={isCurrentTabLoading()} />
+        <ShortcutBar disabled={isCurrentTabLoading()} />
       </div>
       <ChatInput />
     </div>

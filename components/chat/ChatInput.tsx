@@ -3,6 +3,7 @@ import { Globe, LayoutGrid, Plus, Square } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/chat/ModelSelector';
+import { SHORTCUT_SEND_EVENT } from '@/components/chat/ShortcutBar';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { getAIConfigStore } from '@/lib/ai-config';
@@ -100,6 +101,18 @@ export function ChatInput() {
     loadTabs();
   }, []);
 
+  // 监听快捷操作事件
+  useEffect(() => {
+    const handleShortcutSend = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        handleSend(customEvent.detail);
+      }
+    };
+    window.addEventListener(SHORTCUT_SEND_EVENT, handleShortcutSend);
+    return () => window.removeEventListener(SHORTCUT_SEND_EVENT, handleShortcutSend);
+  }, []);
+
   // 监听来自 background 的 AI 响应消息
   useEffect(() => {
     const handleMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError) => {
@@ -164,15 +177,16 @@ export function ChatInput() {
     );
   };
 
-  const handleSend = async () => {
-    console.log('[ChatInput] handleSend called, message:', message, 'activeTabId:', activeTabId, 'isLoading:', isLoading, 'isConfigured:', isConfigured);
-    if (!message.trim() || activeTabId === null || isLoading || !isConfigured) {
+  const handleSend = async (messageToSend?: string) => {
+    const contentToSend = messageToSend ?? message.trim();
+    console.log('[ChatInput] handleSend called, message:', contentToSend, 'activeTabId:', activeTabId, 'isLoading:', isLoading, 'isConfigured:', isConfigured);
+    if (!contentToSend || activeTabId === null || isLoading || !isConfigured) {
       console.log('[ChatInput] Blocked: empty message or no activeTabId or loading or not configured');
       return;
     }
 
     setLoading(activeTabId, true);
-    const userMessageContent = message.trim();
+    const userMessageContent = contentToSend;
     setMessage('');
 
     console.log('[ChatInput] Sending message:', userMessageContent);
@@ -346,7 +360,9 @@ export function ChatInput() {
                 </>
               )}
             </div>
-            <ModelSelector />
+            <div className="flex items-center gap-2">
+              <ModelSelector />
+            </div>
           </div>
         </div>
         {showAttachMenu ? (
