@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Settings, Sliders, Info, Zap } from 'lucide-react';
+import { Settings, Sliders, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AISettings } from '@/components/settings/AISettings';
 import { GeneralSettings } from '@/components/settings/GeneralSettings';
-import { AboutSettings } from '@/components/settings/AboutSettings';
+
 import { ShortcutSettings } from '@/components/settings/ShortcutSettings';
 
-type TabId = 'ai' | 'shortcuts' | 'general' | 'about';
+type TabId = 'ai' | 'shortcuts' | 'general';
 
 interface Tab {
   id: TabId;
@@ -18,7 +18,6 @@ const tabs: Tab[] = [
   { id: 'ai', label: 'AI 配置', icon: <Settings className="h-4 w-4" /> },
   { id: 'shortcuts', label: '快捷操作', icon: <Zap className="h-4 w-4" /> },
   { id: 'general', label: '通用设置', icon: <Sliders className="h-4 w-4" /> },
-  { id: 'about', label: '关于', icon: <Info className="h-4 w-4" /> },
 ];
 
 function App() {
@@ -32,8 +31,6 @@ function App() {
         return <ShortcutSettings />;
       case 'general':
         return <GeneralSettings />;
-      case 'about':
-        return <AboutSettings />;
       default:
         return null;
     }
