@@ -51,6 +51,8 @@ export function ChatInput() {
   const [selectedElements, setSelectedElements] = useState<ElementInfo[]>([]);
   // 元素选择器状态
   const [isPickingElement, setIsPickingElement] = useState(false);
+  // 用于去重：记录最近处理的元素ID
+  const lastProcessedElementIdRef = useRef<string | null>(null);
 
   const chat = getCurrentChat();
   const selectedTabs = chat?.selectedTabs ?? [];
@@ -107,6 +109,23 @@ export function ChatInput() {
     loadTabs();
   }, []);
 
+  // 监听标签页切换，更新 browserActiveTabId 并停止旧页面的选择器
+  useEffect(() => {
+    const handleTabMessage = (message: { type: string; tabId?: number }) => {
+      if (message.type === 'activated' && message.tabId) {
+        // 如果正在选择元素，先停止旧标签页的选择器
+        if (isPickingElement && browserActiveTabId !== null && browserActiveTabId !== message.tabId) {
+          chrome.tabs.sendMessage(browserActiveTabId, { type: 'element_pick_stop' }).catch(() => {});
+        }
+        setBrowserActiveTabId(message.tabId);
+        // 切换标签页时重置选择器状态
+        setIsPickingElement(false);
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleTabMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleTabMessage);
+  }, [isPickingElement, browserActiveTabId]);
+
   // 监听快捷操作事件
   useEffect(() => {
     const handleShortcutSend = (e: Event) => {
@@ -126,6 +145,14 @@ export function ChatInput() {
       if (message.type === 'element_pick_response') {
         setIsPickingElement(false);
         if (message.success && message.element && browserActiveTabId !== null) {
+          // 去重：检查是否已经处理过这个元素
+          const elementId = message.element.id;
+          if (lastProcessedElementIdRef.current === elementId) {
+            console.log('[ChatInput] Duplicate element response ignored:', elementId);
+            return;
+          }
+          lastProcessedElementIdRef.current = elementId;
+          
           // 获取当前标签页信息来填充元素的 tab 信息
           chrome.tabs.get(browserActiveTabId, (tab) => {
             const elementInfo: ElementInfo = {
@@ -426,6 +453,18 @@ export function ChatInput() {
                     aria-label="添加内容"
                   >
                     <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handlePickElement}
+                    disabled={isPickingElement || browserActiveTabId === null}
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label="选择页面元素"
+                    title="选择页面元素"
+                  >
+                    <MousePointer2 className={`h-4 w-4 ${isPickingElement ? 'animate-pulse text-purple-500' : ''}`} />
                   </Button>
                 </>
               )}

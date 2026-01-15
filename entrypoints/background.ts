@@ -104,6 +104,7 @@ export default defineBackground(() => {
       return true; // 保持消息通道开放
     } else if (message.type === 'element_pick_response' || message.type === 'element_pick_cancel') {
       // 转发来自 content script 的响应到 sidepanel
+      // 注意：sidepanel 端需要去重处理
       chrome.runtime.sendMessage(message).catch(() => {});
       sendResponse({ received: true });
     }
@@ -180,7 +181,27 @@ export default defineBackground(() => {
   ) {
     try {
       console.log('[Background] Starting element picker for tab:', request.tabId);
-      // 向目标标签页发送启动选择器的消息
+      
+      // 首先尝试直接发送消息
+      try {
+        await chrome.tabs.sendMessage(request.tabId, { type: 'element_pick_start' });
+        sendResponse({ received: true });
+        return;
+      } catch {
+        // Content script 可能未注入，尝试动态注入
+        console.log('[Background] Content script not found, injecting dynamically...');
+      }
+      
+      // 动态注入 content script
+      await chrome.scripting.executeScript({
+        target: { tabId: request.tabId },
+        files: ['/content-scripts/element-picker.js'],
+      });
+      
+      // 等待一小段时间让脚本初始化
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 再次发送消息启动选择器
       await chrome.tabs.sendMessage(request.tabId, { type: 'element_pick_start' });
       sendResponse({ received: true });
     } catch (error) {
