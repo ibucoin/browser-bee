@@ -1,13 +1,27 @@
 import { Button } from '@/components/ui/button';
 import { Plus, Settings } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store.tsx';
+import { safeGetHostname } from '@/lib/utils';
 
 export function Header() {
   const { state, clearChat } = useChatStore();
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     if (state.activeTabId !== null) {
-      clearChat(state.activeTabId);
+      // 获取当前浏览器活动标签页信息
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (activeTab && activeTab.id && activeTab.url) {
+        const boundTab = {
+          id: activeTab.id,
+          title: activeTab.title || '未命名标签页',
+          url: activeTab.url,
+          favicon: activeTab.favIconUrl,
+          hostname: safeGetHostname(activeTab.url),
+        };
+        clearChat(state.activeTabId, boundTab);
+      } else {
+        clearChat(state.activeTabId);
+      }
     }
   };
 

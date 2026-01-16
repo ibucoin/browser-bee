@@ -1,14 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Header } from '@/components/header/Header';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ShortcutBar } from '@/components/chat/ShortcutBar';
 import { ChatStoreProvider, useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
-import { TabEventMessage, TabInfo } from '@/lib/types';
+import { TabEventMessage, TabInfo, Attachment } from '@/lib/types';
 
 function AppContent() {
-  const { setActiveTab, initTabChat, removeTabChat, updateBoundTab, isCurrentTabLoading, state } = useChatStore();
+  const { setActiveTab, initTabChat, addAttachment, removeTabChat, updateBoundTab, isCurrentTabLoading, state } = useChatStore();
+  const initialTabCheckedRef = useRef(false);
 
   useEffect(() => {
     // 初始化时获取当前活动 Tab
@@ -58,6 +59,37 @@ function AppContent() {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
   }, [setActiveTab, initTabChat, removeTabChat, updateBoundTab, state.chats]);
+
+  // 检查当前 chat 是否有当前标签页的 tab，如果没有则添加（只在初始化时执行一次）
+  useEffect(() => {
+    if (state.activeTabId === null) return;
+    if (initialTabCheckedRef.current) return; // 只执行一次
+
+    const chat = state.chats[state.activeTabId];
+    if (!chat) return;
+
+    initialTabCheckedRef.current = true;
+
+    const hasCurrentTabAttachment = chat.attachments.some(
+      a => a.type === 'tab' && a.data.id === state.activeTabId
+    );
+
+    if (!hasCurrentTabAttachment) {
+      // 获取当前标签页信息并添加
+      chrome.tabs.get(state.activeTabId, (tab) => {
+        if (chrome.runtime.lastError || !tab || !tab.url) return;
+        const tabInfo: TabInfo = {
+          id: tab.id || state.activeTabId!,
+          title: tab.title || '未命名标签页',
+          url: tab.url,
+          favicon: tab.favIconUrl,
+          hostname: safeGetHostname(tab.url),
+        };
+        const tabAttachment: Attachment = { type: 'tab', data: tabInfo };
+        addAttachment(state.activeTabId!, tabAttachment);
+      });
+    }
+  }, [state.activeTabId, state.chats, addAttachment]);
 
   return (
     <div className="flex flex-col h-full">

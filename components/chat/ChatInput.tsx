@@ -32,7 +32,7 @@ async function extractTabContent(tabId: number): Promise<{ success: boolean; con
 }
 
 export function ChatInput() {
-  const { getCurrentChat, addAttachment, removeAttachment, getAttachmentId, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
+  const { getCurrentChat, setAttachments, addAttachment, removeAttachment, clearUnboundAttachments, getAttachmentId, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
   const [message, setMessage] = useState('');
   const isLoading = isCurrentTabLoading();
   const streamingContentRef = useRef('');
@@ -156,36 +156,22 @@ export function ChatInput() {
             return;
           }
           lastProcessedElementIdRef.current = elementId;
-          
+
           // 获取当前标签页信息来填充元素的 tab 信息
           chrome.tabs.get(browserActiveTabId, (tab) => {
             if (chrome.runtime.lastError || !tab) return;
-            
+
             const elementInfo: ElementInfo = {
               ...message.element!,
               tabId: browserActiveTabId,
               tabTitle: tab.title || '未知页面',
               tabUrl: tab.url || '',
             };
-            
+
             // 添加元素到附件
             if (activeTabId !== null) {
               const elementAttachment: Attachment = { type: 'element', data: elementInfo };
               addAttachment(activeTabId, elementAttachment);
-              
-              // 如果该标签页不在附件中，自动添加
-              const tabInfo: TabInfo = {
-                id: browserActiveTabId,
-                title: tab.title || '未命名标签页',
-                url: tab.url || '',
-                favicon: tab.favIconUrl,
-                hostname: safeGetHostname(tab.url || ''),
-              };
-              const exists = tabAttachments.some(t => t.data.id === browserActiveTabId || t.data.url === tab.url);
-              if (!exists) {
-                const tabAttachment: Attachment = { type: 'tab', data: tabInfo };
-                addAttachment(activeTabId, tabAttachment);
-              }
             }
           });
         }
@@ -242,6 +228,7 @@ export function ChatInput() {
   const handleAddTab = (tab: TabInfo) => {
     if (activeTabId === null) return;
     const newKey = getTabKey(tab);
+    // 检查是否已存在
     const exists = tabAttachments.some((item) => getTabKey(item.data) === newKey);
     if (exists) return;
 
@@ -298,12 +285,12 @@ export function ChatInput() {
 
     const chat = getCurrentChat();
     const currentAttachments = chat?.attachments ?? [];
-    const currentTabAttachments = currentAttachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
+    const tabAttachmentsToSend = currentAttachments.filter((a): a is Attachment & { type: 'tab' } => a.type === 'tab');
 
     // 发送前提取所有未提取内容的标签页
-    const tabsNeedingContent = currentTabAttachments.filter((a) => !a.data.pageContent);
+    const tabsNeedingContent = tabAttachmentsToSend.filter((a) => !a.data.pageContent);
     console.log('[ChatInput] Tabs needing content extraction:', tabsNeedingContent.length);
-    console.log('[ChatInput] Current tab attachments:', currentTabAttachments.map(t => ({ id: t.data.id, title: t.data.title, hasContent: Boolean(t.data.pageContent) })));
+    console.log('[ChatInput] Tab attachments to send:', tabAttachmentsToSend.map(t => ({ id: t.data.id, title: t.data.title, hasContent: Boolean(t.data.pageContent) })));
 
     // 收集提取结果，用于直接构建最终的 attachments
     const extractedContentMap: Record<number, string> = {};
@@ -332,7 +319,6 @@ export function ChatInput() {
     }
 
     // 直接基于 currentAttachments 和提取结果构建最终的 attachments 列表
-    // 不依赖 store 的异步更新
     const updatedAttachments: Attachment[] = currentAttachments.map(attachment => {
       if (attachment.type === 'tab') {
         // 如果本次提取了新内容，使用新内容；否则保留原有的 pageContent
@@ -359,6 +345,9 @@ export function ChatInput() {
     };
     addMessage(activeTabId, userMessage);
 
+    // 发送后清空非绑定的附件
+    clearUnboundAttachments(activeTabId);
+
     // 创建空的 assistant 消息用于流式更新
     const assistantMessage: Message = {
       id: crypto.randomUUID(),
@@ -368,13 +357,76 @@ export function ChatInput() {
     };
     addMessage(activeTabId, assistantMessage);
 
+    // 比较两个 attachments 是否相同（基于类型和ID）
+    const isSameAttachments = (a1?: Attachment[], a2?: Attachment[]): boolean => {
+      if (!a1 && !a2) return true;
+      if (!a1 || !a2) return false;
+      if (a1.length !== a2.length) return false;
+      const getKey = (a: Attachment) => {
+        if (a.type === 'tab') return `tab-${a.data.id}`;
+        if (a.type === 'element') return `element-${a.data.id}`;
+        if (a.type === 'image') return `image-${a.data.id}`;
+        return '';
+      };
+      const keys1 = a1.map(getKey).sort();
+      const keys2 = a2.map(getKey).sort();
+      return keys1.every((k, i) => k === keys2[i]);
+    };
+
     // 发送 AI 请求到 background
-    const allMessages = [...(chat?.messages ?? []), userMessage];
+    const historyMessages = chat?.messages ?? [];
+    let messagesToSend: Message[] = [];
+    let attachmentsToSend: Attachment[] = updatedAttachments;
+
+    // 找到当前对话的起点（最近一次发送新 attachments 的位置）
+    let conversationStartIndex = 0;
+    let conversationAttachments: Attachment[] | undefined;
+    let prevUserAttachments: Attachment[] | undefined;
+
+    for (let i = 0; i < historyMessages.length; i++) {
+      const msg = historyMessages[i];
+      if (msg.role === 'user') {
+        const currentAttachments = msg.attachments;
+        // 如果有 attachments 且与上一条用户消息的不同，这是新对话的起点
+        if (currentAttachments && currentAttachments.length > 0) {
+          if (!isSameAttachments(currentAttachments, prevUserAttachments)) {
+            conversationStartIndex = i;
+            conversationAttachments = currentAttachments;
+          }
+        }
+        prevUserAttachments = currentAttachments;
+      }
+    }
+
+    // 判断当前要发送的消息是否开始新对话
+    const hasNewAttachments = updatedAttachments.length > 0 &&
+      !isSameAttachments(updatedAttachments, prevUserAttachments);
+
+    if (hasNewAttachments) {
+      // 新对话，只发送当前消息
+      messagesToSend = [userMessage];
+      attachmentsToSend = updatedAttachments;
+    } else {
+      // 继续当前对话，从对话起点开始发送
+      messagesToSend = [...historyMessages.slice(conversationStartIndex), userMessage];
+      // 如果当前没有 attachments，使用对话起点的 attachments
+      if (updatedAttachments.length === 0 && conversationAttachments) {
+        attachmentsToSend = conversationAttachments;
+      }
+    }
+
+    // 只发送消息的核心内容，不传递历史消息的 attachments
+    const allMessages = messagesToSend.map(m => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+    }));
     const request: AIChatRequest = {
       type: 'ai_chat_request',
       chatTabId: activeTabId,
-      messages: allMessages,
-      attachments: updatedAttachments,
+      messages: allMessages as Message[],
+      attachments: attachmentsToSend,
     };
     console.log('[ChatInput] Sending request to background:', request);
     chrome.runtime.sendMessage(request, (response) => {
@@ -416,13 +468,12 @@ export function ChatInput() {
       <div className="relative flex flex-col rounded-2xl border border-input bg-background py-1">
         <div className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-visible px-3 pt-2 pb-1">
           {/* 已选择的标签页 */}
-          {tabAttachments.filter(a => !a.isBound).map((tabAttachment) => (
+          {tabAttachments.map((tabAttachment) => (
             <PageCard
               key={getTabKey(tabAttachment.data)}
               title={tabAttachment.data.title}
               url={tabAttachment.data.url}
               favicon={tabAttachment.data.favicon}
-              pageContent={tabAttachment.data.pageContent}
               onClose={() => handleRemoveTab(tabAttachment.data)}
             />
           ))}

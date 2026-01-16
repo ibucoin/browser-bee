@@ -30,9 +30,9 @@ export interface ImageAttachment {
 
 // 统一的附件类型
 export type Attachment =
-  | { type: 'tab'; data: TabInfo; isBound?: boolean }    // 网页，isBound 表示是否为绑定的当前页
-  | { type: 'element'; data: ElementInfo }               // 选取的元素
-  | { type: 'image'; data: ImageAttachment };            // 图片
+  | { type: 'tab'; data: TabInfo }       // 网页，绑定对应的浏览器标签页
+  | { type: 'element'; data: ElementInfo }  // 选取的元素（一次性）
+  | { type: 'image'; data: ImageAttachment };  // 图片（一次性）
 
 // 附件辅助函数类型
 export type AttachmentType = Attachment['type'];
