@@ -10,6 +10,12 @@ interface ShortcutBarProps {
 // 自定义事件名称
 export const SHORTCUT_SEND_EVENT = 'shortcut-send-message';
 
+// 快捷方式消息数据
+export interface ShortcutMessageData {
+  title: string;
+  content: string;
+}
+
 export function ShortcutBar({ disabled }: ShortcutBarProps) {
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,9 +56,12 @@ export function ShortcutBar({ disabled }: ShortcutBarProps) {
   }, [isOpen]);
 
   const handleSelect = (shortcut: Shortcut) => {
-    const messageContent = shortcut.content.trim() || shortcut.title;
+    const data: ShortcutMessageData = {
+      title: shortcut.title,
+      content: shortcut.content.trim() || shortcut.title,
+    };
     // 触发自定义事件，让 ChatInput 接收并发送
-    window.dispatchEvent(new CustomEvent(SHORTCUT_SEND_EVENT, { detail: messageContent }));
+    window.dispatchEvent(new CustomEvent(SHORTCUT_SEND_EVENT, { detail: data }));
     setIsOpen(false);
   };
 

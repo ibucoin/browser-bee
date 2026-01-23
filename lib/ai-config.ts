@@ -27,9 +27,28 @@ export interface AIConfigStore {
 // 默认为空配置，需要用户自己添加
 const DEFAULT_PLATFORMS: ModelPlatform[] = [];
 
+// 开发模式下的默认 provider
+const DEV_DEFAULT_PLATFORM: ModelPlatform = {
+  id: 'dev-default',
+  name: '黑与白',
+  icon: 'server',
+  baseURL: 'https://ai.hybgzs.com/',
+  apiKey: 'sk-N2FhzVBXVaQCGg7_QZLf9GxLO-tpWUyIbsS9Wuce0jjABhbRX7chb7DcJQY',
+  enabled: true,
+  models: ['hyb-Optimal/gemini-3-flash-preview'],
+  selectedModel: 'hyb-Optimal/gemini-3-flash-preview',
+  isCustom: true
+};
+
 const DEFAULT_STORE: AIConfigStore = {
   platforms: DEFAULT_PLATFORMS,
   activePlatformId: null,
+};
+
+// 开发模式下的默认配置
+const DEV_DEFAULT_STORE: AIConfigStore = {
+  platforms: [DEV_DEFAULT_PLATFORM],
+  activePlatformId: 'dev-default',
 };
 
 const STORAGE_KEY = 'ai-config-store';
@@ -72,8 +91,18 @@ export async function getAIConfigStore(): Promise<AIConfigStore> {
       return newStore;
     }
     
+    // 开发模式下返回默认调试配置
+    if (import.meta.env.DEV) {
+      return DEV_DEFAULT_STORE;
+    }
+
     return DEFAULT_STORE;
   } catch {
+    // 开发模式下返回默认调试配置
+    if (import.meta.env.DEV) {
+      return DEV_DEFAULT_STORE;
+    }
+
     return DEFAULT_STORE;
   }
 }

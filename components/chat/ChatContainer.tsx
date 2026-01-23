@@ -7,6 +7,7 @@ import { AIConfigStore, getAIConfigStore } from '@/lib/ai-config';
 import { Button } from '@/components/ui/button';
 
 interface ChatContainerProps {
+  tabId: number;
   isLoading?: boolean;
 }
 
@@ -31,7 +32,7 @@ function isSameAttachments(a1?: Attachment[], a2?: Attachment[]): boolean {
 // 单个标签页卡片（紧凑版本）
 function TabCard({ tab }: { tab: TabInfo }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-muted/80 px-3 py-2 shadow-sm">
+    <div className="flex items-center gap-2 rounded-xl bg-muted/80 px-3 py-2 shadow-sm w-[200px]">
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-background overflow-hidden">
         {tab.favicon ? (
           <img src={tab.favicon} alt="" className="h-5 w-5" />
@@ -40,7 +41,7 @@ function TabCard({ tab }: { tab: TabInfo }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground max-w-[140px]">{tab.title}</p>
+        <p className="truncate text-sm font-medium text-foreground">{tab.title}</p>
         <p className="text-xs text-muted-foreground">{tab.hostname}</p>
       </div>
     </div>
@@ -51,12 +52,12 @@ function TabCard({ tab }: { tab: TabInfo }) {
 // 单个元素卡片（紧凑版本）
 function ElementCard({ element }: { element: ElementInfo }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-2 shadow-sm">
+    <div className="flex items-center gap-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-2 shadow-sm w-[200px]">
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-background overflow-hidden">
         <MousePointer2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground max-w-[140px]">
+        <p className="truncate text-sm font-medium text-foreground">
           &lt;{element.tagName}&gt;
         </p>
         <p className="text-xs text-muted-foreground truncate max-w-[140px]">
@@ -121,9 +122,9 @@ function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
-export function ChatContainer({ isLoading }: ChatContainerProps) {
-  const { getCurrentChat } = useChatStore();
-  const chat = getCurrentChat();
+export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
+  const { state } = useChatStore();
+  const chat = state.chats[tabId];
   const messages = chat?.messages ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<string>('');
@@ -297,6 +298,7 @@ export function ChatContainer({ isLoading }: ChatContainerProps) {
               <Message
                 role={message.role as 'user' | 'assistant'}
                 content={message.content}
+                displayContent={message.displayContent}
                 attachedImages={message.attachedImages}
               />
             </div>

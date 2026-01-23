@@ -8,7 +8,7 @@ import { safeGetHostname } from '@/lib/utils';
 import { TabEventMessage, TabInfo, Attachment } from '@/lib/types';
 
 function AppContent() {
-  const { setActiveTab, initTabChat, addAttachment, removeTabChat, updateBoundTab, isCurrentTabLoading, state } = useChatStore();
+  const { setActiveTab, initTabChat, addAttachment, removeTabChat, updateBoundTab, state } = useChatStore();
   const initialTabCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -91,12 +91,28 @@ function AppContent() {
     }
   }, [state.activeTabId, state.chats, addAttachment]);
 
+  // 获取所有 tab 的 loading 状态
+  const isTabLoading = (tabId: number) => state.loadingTabIds.has(tabId);
+
   return (
     <div className="flex flex-col h-full">
       <Header />
-      <div className="flex-1 overflow-y-auto p-3 relative">
-        <ChatContainer isLoading={isCurrentTabLoading()} />
-        <ShortcutBar disabled={isCurrentTabLoading()} />
+      <div className="flex-1 overflow-hidden relative">
+        {/* 为每个 tab 渲染独立的滚动容器，用 CSS 控制显示/隐藏 */}
+        {Object.keys(state.chats).map((tabIdStr) => {
+          const tabId = Number(tabIdStr);
+          const isActive = tabId === state.activeTabId;
+          return (
+            <div
+              key={tabId}
+              className="absolute inset-0 overflow-y-auto p-3"
+              style={{ display: isActive ? 'block' : 'none' }}
+            >
+              <ChatContainer tabId={tabId} isLoading={isTabLoading(tabId)} />
+              <ShortcutBar disabled={isTabLoading(tabId)} />
+            </div>
+          );
+        })}
       </div>
       <ChatInput />
     </div>

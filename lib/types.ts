@@ -42,6 +42,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  // 显示内容（可选，用于快捷方式等场景，只显示标题但发送完整内容）
+  displayContent?: string;
   // 发送时附加的上下文快照
   attachments?: Attachment[];
   // 兼容旧数据（可选，后续可移除）

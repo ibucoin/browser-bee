@@ -4,7 +4,7 @@ import { PageCard } from '@/components/page-card/PageCard';
 import { ElementCard } from '@/components/element-card/ElementCard';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/chat/ModelSelector';
-import { SHORTCUT_SEND_EVENT } from '@/components/chat/ShortcutBar';
+import { SHORTCUT_SEND_EVENT, ShortcutMessageData } from '@/components/chat/ShortcutBar';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { safeGetHostname } from '@/lib/utils';
 import { getAIConfigStore } from '@/lib/ai-config';
@@ -52,7 +52,7 @@ export function ChatInput() {
   // 用于去重：记录最近处理的元素ID
   const lastProcessedElementIdRef = useRef<string | null>(null);
   // 用于快捷方式调用：存储最新的 handleSend 函数
-  const handleSendRef = useRef<(msg?: string) => void>(() => {});
+  const handleSendRef = useRef<(msg?: string, displayContent?: string) => void>(() => {});
 
   const chat = getCurrentChat();
   const attachments = chat?.attachments ?? [];
@@ -133,9 +133,11 @@ export function ChatInput() {
   // 监听快捷操作事件
   useEffect(() => {
     const handleShortcutSend = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
+      const customEvent = e as CustomEvent<ShortcutMessageData>;
       if (customEvent.detail) {
-        handleSendRef.current(customEvent.detail);
+        const { title, content } = customEvent.detail;
+        // content 是实际发送的内容，title 是显示的内容
+        handleSendRef.current(content, title);
       }
     };
     window.addEventListener(SHORTCUT_SEND_EVENT, handleShortcutSend);
@@ -269,7 +271,7 @@ export function ChatInput() {
     });
   };
 
-  const handleSend = async (messageToSend?: string) => {
+  const handleSend = async (messageToSend?: string, displayContent?: string) => {
     const contentToSend = messageToSend ?? message.trim();
     console.log('[ChatInput] handleSend called, message:', contentToSend, 'activeTabId:', activeTabId, 'isLoading:', isLoading, 'isConfigured:', isConfigured);
     if (!contentToSend || activeTabId === null || isLoading || !isConfigured) {
@@ -279,6 +281,8 @@ export function ChatInput() {
 
     setLoading(activeTabId, true);
     const userMessageContent = contentToSend;
+    // displayContent 用于显示（如快捷方式的标题），content 用于实际发送
+    const userDisplayContent = displayContent;
     setMessage('');
 
     console.log('[ChatInput] Sending message:', userMessageContent);
@@ -341,6 +345,7 @@ export function ChatInput() {
       role: 'user',
       content: userMessageContent,
       timestamp: Date.now(),
+      displayContent: userDisplayContent,
       attachments: updatedAttachments.length > 0 ? [...updatedAttachments] : undefined,
     };
     addMessage(activeTabId, userMessage);

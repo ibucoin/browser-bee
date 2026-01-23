@@ -1,15 +1,21 @@
 import ReactMarkdown from 'react-markdown';
+import { Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImageAttachment } from '@/lib/types';
 
 export interface MessageProps {
   role: 'user' | 'assistant';
   content: string;
+  displayContent?: string;
   attachedImages?: ImageAttachment[];
 }
 
-export function Message({ role, content, attachedImages }: MessageProps) {
+export function Message({ role, content, displayContent, attachedImages }: MessageProps) {
   const isUser = role === 'user';
+  // 如果有 displayContent，显示它；否则显示 content
+  const textToShow = displayContent || content;
+  // 是否为快捷方式消息（有 displayContent 且与 content 不同）
+  const isShortcut = displayContent && displayContent !== content;
 
   if (isUser) {
     return (
@@ -27,10 +33,22 @@ export function Message({ role, content, attachedImages }: MessageProps) {
             ))}
           </div>
         )}
-        {/* 文字内容 */}
-        {content && (
+        {/* 快捷方式卡片 - 与 TabCard 样式一致 */}
+        {isShortcut && textToShow && (
+          <div className="flex items-center gap-2 rounded-xl bg-muted/80 px-3 py-2 shadow-sm w-[200px]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-background">
+              <Zap className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{textToShow}</p>
+              <p className="text-xs text-muted-foreground">快捷指令</p>
+            </div>
+          </div>
+        )}
+        {/* 普通文字消息 */}
+        {!isShortcut && textToShow && (
           <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-            {content}
+            {textToShow}
           </div>
         )}
       </div>
