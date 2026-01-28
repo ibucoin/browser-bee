@@ -505,16 +505,26 @@ export function ChatInput() {
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {isLoading ? (
-                <Button
+                <button
                   type="button"
                   onClick={handleAbort}
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded-full border-red-300 bg-red-50 hover:bg-red-100 hover:border-red-400 dark:border-red-800 dark:bg-red-950/50 dark:hover:bg-red-900/50 animate-pulse"
+                  className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/70"
                   aria-label="停止生成"
+                  title="点击停止生成"
                 >
-                  <Square className="h-3 w-3 fill-red-500 text-red-500" />
-                </Button>
+                  {/* 旋转刻度环 */}
+                  <span
+                    className="absolute inset-0 animate-spin rounded-full p-[3px]"
+                    style={{
+                      background: 'conic-gradient(from 90deg, rgba(239,68,68,0.95) 0% 18%, transparent 18% 30%, rgba(239,68,68,0.55) 30% 48%, transparent 48% 60%, rgba(239,68,68,0.95) 60% 78%, transparent 78% 100%)',
+                      animationDuration: '1s'
+                    }}
+                  />
+                  {/* 中心底盘 */}
+                  <span className="absolute inset-[3px] rounded-full bg-white/95 dark:bg-zinc-900/95 ring-1 ring-red-500/30 dark:ring-red-400/25 shadow-sm" />
+                  {/* 停止方块 */}
+                  <span className="relative h-3 w-3 rounded-[3px] bg-red-600 dark:bg-red-500 group-hover:bg-red-700 dark:group-hover:bg-red-400 transition shadow-sm" />
+                </button>
               ) : (
                 <>
                   <Button
