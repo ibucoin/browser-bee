@@ -35,7 +35,8 @@ export function ChatInput() {
   const { getCurrentChat, setAttachments, addAttachment, removeAttachment, clearUnboundAttachments, getAttachmentId, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
   const [message, setMessage] = useState('');
   const isLoading = isCurrentTabLoading();
-  const streamingContentRef = useRef('');
+  // 按 chatTabId 存储流式内容，避免切换 tab 时丢失
+  const streamingContentRef = useRef<Map<number, string>>(new Map());
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [browserActiveTabId, setBrowserActiveTabId] = useState<number | null>(null);
@@ -144,14 +145,12 @@ export function ChatInput() {
     return () => window.removeEventListener(SHORTCUT_SEND_EVENT, handleShortcutSend);
   }, []);
 
-  // 监听来自 background 的 AI 响应消息
+  // 监听来自 background 的元素选择响应
   useEffect(() => {
-    const handleMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError | ElementPickResponse | ElementPickCancel) => {
-      // 处理元素选择响应
+    const handleElementMessage = (message: ElementPickResponse | ElementPickCancel) => {
       if (message.type === 'element_pick_response') {
         setIsPickingElement(false);
         if (message.success && message.element && browserActiveTabId !== null) {
-          // 去重：检查是否已经处理过这个元素
           const elementId = message.element.id;
           if (lastProcessedElementIdRef.current === elementId) {
             console.log('[ChatInput] Duplicate element response ignored:', elementId);
@@ -159,7 +158,6 @@ export function ChatInput() {
           }
           lastProcessedElementIdRef.current = elementId;
 
-          // 获取当前标签页信息来填充元素的 tab 信息
           chrome.tabs.get(browserActiveTabId, (tab) => {
             if (chrome.runtime.lastError || !tab) return;
 
@@ -170,7 +168,6 @@ export function ChatInput() {
               tabUrl: tab.url || '',
             };
 
-            // 添加元素到附件
             if (activeTabId !== null) {
               const elementAttachment: Attachment = { type: 'element', data: elementInfo };
               addAttachment(activeTabId, elementAttachment);
@@ -179,30 +176,45 @@ export function ChatInput() {
         }
         return;
       }
-      
+
       if (message.type === 'element_pick_cancel') {
         setIsPickingElement(false);
-        return;
-      }
-
-      if ((message as AIChatStreamChunk).chatTabId !== activeTabId) return;
-
-      if (message.type === 'ai_chat_chunk') {
-        streamingContentRef.current += message.chunk;
-        updateLastMessage(activeTabId!, streamingContentRef.current);
-      } else if (message.type === 'ai_chat_complete') {
-        setLoading(activeTabId!, false);
-        streamingContentRef.current = '';
-      } else if (message.type === 'ai_chat_error') {
-        setLoading(activeTabId!, false);
-        streamingContentRef.current = '';
-        updateLastMessage(activeTabId!, `错误: ${message.error}`);
       }
     };
 
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [activeTabId, browserActiveTabId, tabAttachments, updateLastMessage, setLoading, addAttachment]);
+    chrome.runtime.onMessage.addListener(handleElementMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleElementMessage);
+  }, [activeTabId, browserActiveTabId, addAttachment]);
+
+  // 监听来自 background 的 AI 流式响应（独立 effect，避免 tab 切换导致漏消息）
+  useEffect(() => {
+    const handleAIMessage = (message: AIChatStreamChunk | AIChatComplete | AIChatError) => {
+      if (message.type !== 'ai_chat_chunk' && message.type !== 'ai_chat_complete' && message.type !== 'ai_chat_error') {
+        return;
+      }
+
+      const chatTabId = (message as AIChatStreamChunk).chatTabId;
+      if (typeof chatTabId !== 'number') return;
+
+      if (message.type === 'ai_chat_chunk') {
+        const prev = streamingContentRef.current.get(chatTabId) ?? '';
+        const next = prev + message.chunk;
+        streamingContentRef.current.set(chatTabId, next);
+        updateLastMessage(chatTabId, next);
+      } else if (message.type === 'ai_chat_complete') {
+        setLoading(chatTabId, false);
+        streamingContentRef.current.delete(chatTabId);
+        updateLastMessage(chatTabId, message.fullText);
+      } else if (message.type === 'ai_chat_error') {
+        setLoading(chatTabId, false);
+        streamingContentRef.current.delete(chatTabId);
+        updateLastMessage(chatTabId, `错误: ${message.error}`);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleAIMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleAIMessage);
+  }, [updateLastMessage, setLoading]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -460,7 +472,7 @@ export function ChatInput() {
     };
     chrome.runtime.sendMessage(abortMessage);
     setLoading(activeTabId, false);
-    streamingContentRef.current = '';
+    streamingContentRef.current.delete(activeTabId);
   };
 
   const orderedTabs = [
