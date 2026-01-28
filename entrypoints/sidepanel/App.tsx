@@ -109,11 +109,12 @@ function AppContent() {
               style={{ display: isActive ? 'block' : 'none' }}
             >
               <ChatContainer tabId={tabId} isLoading={isTabLoading(tabId)} />
-              <ShortcutBar disabled={isTabLoading(tabId)} />
             </div>
           );
         })}
       </div>
+      {/* 固定工具栏 */}
+      <ShortcutBar disabled={state.activeTabId !== null && isTabLoading(state.activeTabId)} />
       <ChatInput />
     </div>
   );

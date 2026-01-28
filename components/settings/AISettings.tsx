@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { 
-  AIConfigStore, 
-  ModelPlatform, 
-  getAIConfigStore, 
+import {
+  AIConfigStore,
+  ModelPlatform,
+  getAIConfigStore,
   setAIConfigStore,
   fetchModels,
-  testConnection
+  testConnection,
+  PROVIDER_TYPES,
+  ProviderType
 } from '@/lib/ai-config';
 import { 
   Settings, 
@@ -890,7 +892,8 @@ export function AISettings({ onClose }: AISettingsProps) {
       enabled: true,
       models: [],
       selectedModel: '',
-      isCustom: true
+      isCustom: true,
+      providerType: 'openai',
     };
     
     const newStore = {
@@ -1044,6 +1047,24 @@ export function AISettings({ onClose }: AISettingsProps) {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* 基本配置 */}
           <div className="space-y-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">提供商类型</label>
+              <select
+                value={activePlatform.providerType || 'openai'}
+                onChange={(e) => handleUpdatePlatform({ providerType: e.target.value as ProviderType })}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {PROVIDER_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {PROVIDER_TYPES.find(t => t.value === (activePlatform.providerType || 'openai'))?.description}
+              </p>
+            </div>
+
             <div className="grid gap-2">
               <label className="text-sm font-medium">API Base URL</label>
               <input

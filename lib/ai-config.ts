@@ -1,10 +1,22 @@
 import { createOpenAI } from '@ai-sdk/openai';
 
+// 支持的提供商类型
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'azure' | 'ollama';
+
+export const PROVIDER_TYPES: { value: ProviderType; label: string; description: string }[] = [
+  { value: 'openai', label: 'OpenAI 兼容', description: '支持 OpenAI API 格式的服务（OpenAI、DeepSeek、OneAPI 等）' },
+  { value: 'anthropic', label: 'Anthropic', description: 'Claude 系列模型原生 API' },
+  { value: 'google', label: 'Google AI', description: 'Gemini 系列模型原生 API' },
+  { value: 'azure', label: 'Azure OpenAI', description: '微软 Azure 托管的 OpenAI 服务' },
+  { value: 'ollama', label: 'Ollama', description: '本地运行的 Ollama 服务' },
+];
+
 // 基础配置接口（保持兼容）
 export interface AIConfig {
   baseURL: string;
   apiKey: string;
   model: string;
+  providerType?: ProviderType;
 }
 
 export interface ModelPlatform {
@@ -17,6 +29,7 @@ export interface ModelPlatform {
   models: string[]; // 已启用的模型列表
   selectedModel: string; // 当前选中的模型
   isCustom?: boolean; // 是否为自定义平台
+  providerType: ProviderType; // 提供商类型
 }
 
 export interface AIConfigStore {
@@ -37,7 +50,8 @@ const DEV_DEFAULT_PLATFORM: ModelPlatform = {
   enabled: true,
   models: ['hyb-Optimal/gemini-3-flash-preview'],
   selectedModel: 'hyb-Optimal/gemini-3-flash-preview',
-  isCustom: true
+  isCustom: true,
+  providerType: 'openai',
 };
 
 const DEFAULT_STORE: AIConfigStore = {
@@ -78,7 +92,8 @@ export async function getAIConfigStore(): Promise<AIConfigStore> {
         enabled: true,
         models: [oldConfig.model],
         selectedModel: oldConfig.model,
-        isCustom: true
+        isCustom: true,
+        providerType: oldConfig.providerType || 'openai',
       };
       
       const newStore: AIConfigStore = {
@@ -116,20 +131,22 @@ export async function setAIConfigStore(store: AIConfigStore): Promise<void> {
 export async function getAIConfig(): Promise<AIConfig> {
   const store = await getAIConfigStore();
   const activePlatform = store.platforms.find(p => p.id === store.activePlatformId);
-  
+
   if (activePlatform) {
     return {
       baseURL: activePlatform.baseURL,
       apiKey: activePlatform.apiKey,
       model: activePlatform.selectedModel,
+      providerType: activePlatform.providerType,
     };
   }
-  
+
   // Fallback
   return {
-    baseURL: DEFAULT_PLATFORMS[0].baseURL,
-    apiKey: DEFAULT_PLATFORMS[0].apiKey,
-    model: DEFAULT_PLATFORMS[0].selectedModel,
+    baseURL: '',
+    apiKey: '',
+    model: '',
+    providerType: 'openai',
   };
 }
 
