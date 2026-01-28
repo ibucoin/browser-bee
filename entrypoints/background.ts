@@ -62,7 +62,7 @@ export default defineBackground(() => {
     if ((changeInfo.url || changeInfo.title || changeInfo.favIconUrl) && tab.url) {
       const tabInfo: TabInfo = {
         id: tabId,
-        title: tab.title || '未命名标签页',
+        title: tab.title || 'Untitled Tab',
         url: tab.url,
         favicon: tab.favIconUrl,
         hostname: safeGetHostname(tab.url),

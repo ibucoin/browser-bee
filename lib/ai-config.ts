@@ -3,12 +3,12 @@ import { createOpenAI } from '@ai-sdk/openai';
 // 支持的提供商类型
 export type ProviderType = 'openai' | 'anthropic' | 'google' | 'azure' | 'ollama';
 
-export const PROVIDER_TYPES: { value: ProviderType; label: string; description: string }[] = [
-  { value: 'openai', label: 'OpenAI 兼容', description: '支持 OpenAI API 格式的服务（OpenAI、DeepSeek、OneAPI 等）' },
-  { value: 'anthropic', label: 'Anthropic', description: 'Claude 系列模型原生 API' },
-  { value: 'google', label: 'Google AI', description: 'Gemini 系列模型原生 API' },
-  { value: 'azure', label: 'Azure OpenAI', description: '微软 Azure 托管的 OpenAI 服务' },
-  { value: 'ollama', label: 'Ollama', description: '本地运行的 Ollama 服务' },
+export const PROVIDER_TYPES: { value: ProviderType; labelKey: string; descKey: string }[] = [
+  { value: 'openai', labelKey: 'openaiCompatible', descKey: 'openaiCompatibleDesc' },
+  { value: 'anthropic', labelKey: 'anthropic', descKey: 'anthropicDesc' },
+  { value: 'google', labelKey: 'googleAI', descKey: 'googleAIDesc' },
+  { value: 'azure', labelKey: 'azureOpenAI', descKey: 'azureOpenAIDesc' },
+  { value: 'ollama', labelKey: 'ollama', descKey: 'ollamaDesc' },
 ];
 
 // 基础配置接口（保持兼容）
@@ -228,7 +228,7 @@ export async function fetchModels(baseURL: string, apiKey: string): Promise<stri
     // 检查 Content-Type 是否为 JSON
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error('API 返回了非 JSON 响应，请检查 Base URL 是否正确');
+      throw new Error('API returned non-JSON response, please check Base URL');
     }
     
     const data = await response.json();

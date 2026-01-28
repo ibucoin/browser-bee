@@ -62,6 +62,11 @@ export default defineContentScript({
 
     // 创建顶部横幅提示
     function createBanner(): HTMLDivElement {
+      const isZh = navigator.language.startsWith('zh');
+      const bannerText = isZh
+        ? '<strong>元素选择模式</strong> - 点击页面上的元素进行选择，按 ESC 取消'
+        : '<strong>Element Selection Mode</strong> - Click an element to select, press ESC to cancel';
+
       const banner = document.createElement('div');
       banner.id = 'browser-bee-picker-banner';
       banner.innerHTML = `
@@ -70,7 +75,7 @@ export default defineContentScript({
             <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
             <path d="M13 13l6 6"/>
           </svg>
-          <span><strong>元素选择模式</strong> - 点击页面上的元素进行选择，按 ESC 取消</span>
+          <span>${bannerText}</span>
         </div>
       `;
       banner.style.cssText = `

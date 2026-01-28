@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Message } from './Message';
 import { useChatStore } from '@/lib/chat-store.tsx';
 import { TabInfo, ElementInfo, Attachment } from '@/lib/types';
@@ -70,16 +71,17 @@ function ElementCard({ element }: { element: ElementInfo }) {
 
 // 上下文指示器组件（显示附件）
 function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  
+
   if (!attachments || attachments.length === 0) return null;
-  
+
   const tabs = attachments.filter(a => a.type === 'tab').map(a => a.data as TabInfo);
   const elements = attachments.filter(a => a.type === 'element').map(a => a.data as ElementInfo);
-  
+
   const totalItems = attachments.length;
   const showCollapsed = totalItems > 3;
-  
+
   const displayTabs = useMemo(
     () => (showCollapsed && !expanded ? tabs.slice(0, 3) : tabs),
     [tabs, showCollapsed, expanded]
@@ -104,7 +106,7 @@ function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
           onClick={() => setExpanded(true)}
           className="flex items-center gap-1 rounded-xl bg-muted/80 px-3 py-2 text-xs text-muted-foreground hover:bg-muted shadow-sm"
         >
-          +{remainingCount} 个附件
+          {t('nAttachments', { count: remainingCount })}
           <ChevronDown className="h-3 w-3" />
         </button>
       )}
@@ -115,7 +117,7 @@ function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           <ChevronUp className="h-3 w-3" />
-          收起
+          {t('collapse')}
         </button>
       )}
     </div>
@@ -123,6 +125,7 @@ function AttachmentIndicator({ attachments }: { attachments: Attachment[] }) {
 }
 
 export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
+  const { t } = useTranslation();
   const { state } = useChatStore();
   const chat = state.chats[tabId];
   const messages = chat?.messages ?? [];
@@ -186,18 +189,18 @@ export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
             <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground">未配置 AI 服务</h3>
+            <h3 className="text-lg font-semibold text-foreground">{t('noAIService')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              请先在设置中配置 API 服务才能开始对话
+              {t('noAIServiceDesc')}
             </p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2"
             onClick={() => chrome.runtime.openOptionsPage()}
           >
             <Settings className="h-4 w-4" />
-            打开设置
+            {t('openSettings')}
           </Button>
         </div>
       );
@@ -210,18 +213,18 @@ export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
             <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground">未配置 API Key</h3>
+            <h3 className="text-lg font-semibold text-foreground">{t('noApiKey')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              请为 <span className="font-medium">{configStatus.providerName}</span> 配置 API Key
+              {t('noApiKeyDesc', { name: configStatus.providerName })}
             </p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2"
             onClick={() => chrome.runtime.openOptionsPage()}
           >
             <Settings className="h-4 w-4" />
-            打开设置
+            {t('openSettings')}
           </Button>
         </div>
       );
@@ -234,18 +237,18 @@ export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
             <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground">未选择模型</h3>
+            <h3 className="text-lg font-semibold text-foreground">{t('noModel')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              请为 <span className="font-medium">{configStatus.providerName}</span> 选择至少一个模型
+              {t('noModelDesc', { name: configStatus.providerName })}
             </p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2"
             onClick={() => chrome.runtime.openOptionsPage()}
           >
             <Settings className="h-4 w-4" />
-            打开设置
+            {t('openSettings')}
           </Button>
         </div>
       );
@@ -267,7 +270,7 @@ export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
   if (messages.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        开始新的对话...
+        {t('startNewChat')}
       </div>
     );
   }
@@ -308,7 +311,7 @@ export function ChatContainer({ tabId, isLoading }: ChatContainerProps) {
         {isLoading && (
           <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
             <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">生成回复中</span>
+            <span className="text-sm">{t('generating')}</span>
           </div>
         )}
       </div>

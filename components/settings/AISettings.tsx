@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -110,6 +111,7 @@ function ModelSelectDialog({
   currentModels: string[];
   platform: ModelPlatform;
 }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -130,7 +132,7 @@ function ModelSelectDialog({
 
   const fetchAvailableModels = async () => {
     if (!platform.apiKey && platform.id !== 'ollama') {
-      setError('请先配置 API Key');
+      setError(t('configureApiKeyFirst'));
       return;
     }
 
@@ -140,7 +142,7 @@ function ModelSelectDialog({
       const models = await fetchModels(platform.baseURL, platform.apiKey);
       setAvailableModels(models);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '获取模型列表失败');
+      setError(err instanceof Error ? err.message : t('fetchModelsFailed'));
     } finally {
       setLoading(false);
     }
@@ -184,7 +186,7 @@ function ModelSelectDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">选择模型</h3>
+          <h3 className="text-lg font-semibold">{t('selectModel')}</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -195,7 +197,7 @@ function ModelSelectDialog({
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="搜索模型..."
+              placeholder={t('searchModels')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -216,7 +218,7 @@ function ModelSelectDialog({
         <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[400px] border rounded-md p-2 space-y-3">
           {filteredModels.length === 0 && !loading && (
             <div className="text-center py-8 text-muted-foreground">
-              未找到模型，请检查 API 配置或手动输入
+              {t('noModelsFound')}
             </div>
           )}
           {filteredModels.length > 0 && Object.entries(groupModels(filteredModels)).map(([groupName, models]) => (
@@ -292,12 +294,12 @@ function ModelSelectDialog({
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
           <Button onClick={() => {
             onSave(Array.from(selectedModels));
             onClose();
           }}>
-            确认 ({selectedModels.size})
+            {t('confirm', { count: selectedModels.size })}
           </Button>
         </div>
       </div>
@@ -317,6 +319,7 @@ function EditNameDialog({
   onSave: (name: string) => void;
   currentName: string;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(currentName);
 
   useEffect(() => {
@@ -329,7 +332,7 @@ function EditNameDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-lg bg-background p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">编辑平台名称</h3>
+          <h3 className="text-lg font-semibold">{t('editPlatformName')}</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -337,14 +340,14 @@ function EditNameDialog({
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="请输入平台名称"
+          placeholder={t('enterPlatformName')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring mb-4"
           autoFocus
         />
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
           <Button onClick={() => { onSave(name); onClose(); }} disabled={!name.trim()}>
-            保存
+            {t('save')}
           </Button>
         </div>
       </div>
@@ -364,24 +367,25 @@ function DeleteConfirmDialog({
   onConfirm: () => void;
   platformName: string;
 }) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-lg bg-background p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">确认删除</h3>
+          <h3 className="text-lg font-semibold">{t('confirmDelete')}</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          确定要删除平台 <span className="font-medium text-foreground">"{platformName}"</span> 吗？此操作不可撤销。
+          {t('deletePlatformConfirm', { name: platformName })}
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
           <Button variant="destructive" onClick={() => { onConfirm(); onClose(); }}>
-            删除
+            {t('delete')}
           </Button>
         </div>
       </div>
@@ -787,6 +791,7 @@ function ContextMenu({
 }
 
 export function AISettings({ onClose }: AISettingsProps) {
+  const { t } = useTranslation();
   const [store, setStore] = useState<AIConfigStore | null>(null);
   const [selectedPlatformId, setSelectedPlatformId] = useState<string | null>(null);
   const [platformSearch, setPlatformSearch] = useState('');
@@ -998,13 +1003,13 @@ export function AISettings({ onClose }: AISettingsProps) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
               <Server className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">暂无 AI 服务配置</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('noAIServiceConfig')}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              点击左侧「添加自定义平台」开始配置
+              {t('addCustomPlatformHint')}
             </p>
             <Button onClick={handleAddCustomPlatform}>
               <Plus className="h-4 w-4 mr-2" />
-              添加平台
+              {t('addPlatform')}
             </Button>
           </div>
         ) : (
@@ -1016,7 +1021,7 @@ export function AISettings({ onClose }: AISettingsProps) {
                 <button
                   onClick={() => setEditDialog({ isOpen: true, platformId: activePlatform.id, name: activePlatform.name })}
                   className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                  title="编辑名称"
+                  title={t('editName')}
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -1026,7 +1031,7 @@ export function AISettings({ onClose }: AISettingsProps) {
               </div>
               <div className="flex items-center gap-3">
                  <div className="flex items-center gap-2">
-                   <span className="text-sm text-muted-foreground">启用</span>
+                   <span className="text-sm text-muted-foreground">{t('enable')}</span>
                    <Switch 
                      checked={store.activePlatformId === activePlatform.id}
                      onCheckedChange={(checked) => {
@@ -1048,7 +1053,7 @@ export function AISettings({ onClose }: AISettingsProps) {
           {/* 基本配置 */}
           <div className="space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium">提供商类型</label>
+              <label className="text-sm font-medium">{t('providerType')}</label>
               <select
                 value={activePlatform.providerType || 'openai'}
                 onChange={(e) => handleUpdatePlatform({ providerType: e.target.value as ProviderType })}
@@ -1056,12 +1061,12 @@ export function AISettings({ onClose }: AISettingsProps) {
               >
                 {PROVIDER_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
-                    {type.label}
+                    {t(type.labelKey)}
                   </option>
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                {PROVIDER_TYPES.find(t => t.value === (activePlatform.providerType || 'openai'))?.description}
+                {t(PROVIDER_TYPES.find(pt => pt.value === (activePlatform.providerType || 'openai'))?.descKey || '')}
               </p>
             </div>
 

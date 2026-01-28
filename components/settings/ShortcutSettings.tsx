@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Shortcut,
@@ -31,6 +32,7 @@ function ShortcutDialog({
   onSave: (data: { title: string; content: string }) => void;
   shortcut?: Shortcut | null;
 }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [error, setError] = useState('');
@@ -45,7 +47,7 @@ function ShortcutDialog({
 
   const handleSave = () => {
     if (!title.trim()) {
-      setError('标题不能为空');
+      setError(t('titleRequired'));
       return;
     }
     onSave({ title: title.trim(), content: content.trim() });
@@ -59,7 +61,7 @@ function ShortcutDialog({
       <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">
-            {shortcut ? '编辑快捷操作' : '添加快捷操作'}
+            {shortcut ? t('editShortcut') : t('addShortcut')}
           </h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -69,7 +71,7 @@ function ShortcutDialog({
         <div className="space-y-4">
           <div className="grid gap-2">
             <label className="text-sm font-medium">
-              标题 <span className="text-destructive">*</span>
+              {t('titleLabel')} <span className="text-destructive">*</span>
             </label>
             <input
               value={title}
@@ -77,7 +79,7 @@ function ShortcutDialog({
                 setTitle(e.target.value);
                 if (e.target.value.trim()) setError('');
               }}
-              placeholder="例如：翻译成中文"
+              placeholder={t('titlePlaceholder')}
               className={cn(
                 'w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring',
                 error && 'border-destructive'
@@ -94,28 +96,28 @@ function ShortcutDialog({
 
           <div className="grid gap-2">
             <label className="text-sm font-medium">
-              内容 <span className="text-muted-foreground text-xs">(可选)</span>
+              {t('contentLabel')} <span className="text-muted-foreground text-xs">{t('contentOptional')}</span>
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="发送给 AI 的内容，留空则发送标题"
+              placeholder={t('contentPlaceholder')}
               rows={4}
               className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              如果留空，将发送标题作为消息内容
+              {t('contentEmptyHint')}
             </p>
           </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t('cancel')}
           </Button>
           <Button onClick={handleSave}>
             <Check className="h-4 w-4 mr-1" />
-            保存
+            {t('save')}
           </Button>
         </div>
       </div>
@@ -135,25 +137,24 @@ function DeleteConfirmDialog({
   onConfirm: () => void;
   shortcutTitle: string;
 }) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-lg bg-background p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">确认删除</h3>
+          <h3 className="text-lg font-semibold">{t('confirmDelete')}</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          确定要删除快捷操作{' '}
-          <span className="font-medium text-foreground">"{shortcutTitle}"</span>{' '}
-          吗？此操作不可撤销。
+          {t('deleteShortcutConfirm', { title: shortcutTitle })}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t('cancel')}
           </Button>
           <Button
             variant="destructive"
@@ -162,7 +163,7 @@ function DeleteConfirmDialog({
               onClose();
             }}
           >
-            删除
+            {t('delete')}
           </Button>
         </div>
       </div>
@@ -171,6 +172,7 @@ function DeleteConfirmDialog({
 }
 
 export function ShortcutSettings() {
+  const { t } = useTranslation();
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDialog, setEditDialog] = useState<{
@@ -232,7 +234,7 @@ export function ShortcutSettings() {
       {/* 左侧列表 */}
       <div className="w-64 border-r flex flex-col bg-muted/10">
         <div className="p-3 border-b">
-          <h2 className="font-medium text-sm">快捷操作列表</h2>
+          <h2 className="font-medium text-sm">{t('shortcutList')}</h2>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -271,7 +273,7 @@ export function ShortcutSettings() {
             <div className="flex items-center justify-center w-5 h-5 rounded border border-dashed border-current">
               <Plus className="h-3 w-3" />
             </div>
-            <span>添加快捷操作</span>
+            <span>{t('addShortcut')}</span>
           </button>
         </div>
       </div>
@@ -283,21 +285,21 @@ export function ShortcutSettings() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
               <Zap className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">暂无快捷操作</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('noShortcuts')}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              快捷操作可以帮助你快速发送常用的提示词
+              {t('noShortcutsDesc')}
             </p>
             <Button onClick={handleAdd}>
               <Plus className="h-4 w-4 mr-2" />
-              添加快捷操作
+              {t('addShortcut')}
             </Button>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-4">
-              <h3 className="text-lg font-semibold">快捷操作</h3>
+              <h3 className="text-lg font-semibold">{t('shortcutsTitle')}</h3>
               <p className="text-sm text-muted-foreground">
-                在主对话页面可快速选择这些操作发送给 AI
+                {t('shortcutsDesc')}
               </p>
             </div>
 
@@ -319,7 +321,7 @@ export function ShortcutSettings() {
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground italic ml-6">
-                          (发送标题作为内容)
+                          {t('sendTitleAsContent')}
                         </p>
                       )}
                     </div>

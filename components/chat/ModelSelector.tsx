@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Server, Check, AlertCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { 
-  AIConfigStore, 
-  ModelPlatform, 
-  getAIConfigStore, 
-  setAIConfigStore 
+import {
+  AIConfigStore,
+  ModelPlatform,
+  getAIConfigStore,
+  setAIConfigStore
 } from '@/lib/ai-config';
 
 export function ModelSelector() {
+  const { t } = useTranslation();
   const [store, setStore] = useState<AIConfigStore | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,9 +69,9 @@ export function ModelSelector() {
   const isConfigured = activePlatform && hasApiKey && hasModels;
   
   // 显示文本：平台名/模型名
-  const displayText = activePlatform 
-    ? (hasModels ? `${activePlatform.name}/${currentModel}` : `${activePlatform.name}/未选择模型`)
-    : '未配置';
+  const displayText = activePlatform
+    ? (hasModels ? `${activePlatform.name}/${currentModel}` : `${activePlatform.name}/${t('noModelSelected')}`)
+    : t('notConfigured');
   
   // 警告状态
   const showWarning = activePlatform && (!hasApiKey || !hasModels);
@@ -134,7 +136,7 @@ export function ModelSelector() {
         >
           <div className="p-2 border-b">
             <div className="text-xs font-medium text-muted-foreground px-2 py-1">
-              选择模型
+              {t('selectModel')}
             </div>
           </div>
           
@@ -144,9 +146,9 @@ export function ModelSelector() {
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <div>
-                  {!activePlatform 
-                    ? "未配置 AI 服务" 
-                    : "请先配置 API Key"}
+                  {!activePlatform
+                    ? t('noAIService')
+                    : t('configureApiKeyFirst')}
                   <button
                     onClick={() => {
                       chrome.runtime.openOptionsPage();
@@ -154,7 +156,7 @@ export function ModelSelector() {
                     }}
                     className="ml-1 underline hover:no-underline"
                   >
-                    去设置
+                    {t('goToSettings')}
                   </button>
                 </div>
               </div>
@@ -164,7 +166,7 @@ export function ModelSelector() {
           <div className="max-h-[300px] overflow-y-auto p-1">
             {availablePlatforms.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                暂无可用模型，请在设置中配置
+                {t('noModelsAvailable')}
               </div>
             ) : (
               availablePlatforms.map(platform => (

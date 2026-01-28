@@ -1,4 +1,5 @@
 import { streamText } from 'ai';
+import i18n from './i18n';
 import { getAIConfig, getChatModel } from './ai-config';
 import { Message, TabInfo, ElementInfo, Attachment } from './types';
 
@@ -30,15 +31,15 @@ export function buildMessagesWithContext(
     .map((a) => `[${a.data.title}](${a.data.url}):\n${a.data.pageContent}`);
   
   if (tabContexts.length > 0) {
-    contextParts.push('## 网页内容\n\n' + tabContexts.join('\n\n---\n\n'));
+    contextParts.push(`## ${i18n.t('webPageContent')}\n\n` + tabContexts.join('\n\n---\n\n'));
   }
-  
+
   // 添加选中元素上下文
   if (elementAttachments.length > 0) {
-    const elementContexts = elementAttachments.map((a) => 
-      `### <${a.data.tagName}> 元素\n- 来源: ${a.data.tabTitle}\n- 选择器: ${a.data.selector}\n- 内容:\n\`\`\`html\n${a.data.outerHTML}\n\`\`\``
+    const elementContexts = elementAttachments.map((a) =>
+      `### <${a.data.tagName}> ${i18n.t('element')}\n- ${i18n.t('source')}: ${a.data.tabTitle}\n- ${i18n.t('selector')}: ${a.data.selector}\n- ${i18n.t('contentColon')}:\n\`\`\`html\n${a.data.outerHTML}\n\`\`\``
     );
-    contextParts.push('## 选中的页面元素\n\n' + elementContexts.join('\n\n'));
+    contextParts.push(`## ${i18n.t('selectedElements')}\n\n` + elementContexts.join('\n\n'));
   }
 
   const coreMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
@@ -47,7 +48,7 @@ export function buildMessagesWithContext(
   if (contextParts.length > 0) {
     coreMessages.push({
       role: 'system',
-      content: `以下是用户提供的上下文信息：\n\n${contextParts.join('\n\n---\n\n')}`,
+      content: `${i18n.t('contextInfo')}\n\n${contextParts.join('\n\n---\n\n')}`,
     });
   }
 
@@ -73,7 +74,7 @@ export async function streamChat({ messages, onChunk, onComplete, onError, abort
     console.log('[AI Service] Full request URL will be:', `${config.baseURL}/chat/completions`);
 
     if (!config.apiKey) {
-      throw new Error('请先配置 API Key');
+      throw new Error(i18n.t('configureApiKey'));
     }
 
     // 使用 getChatModel 获取 chat completions 模型
@@ -112,7 +113,7 @@ export async function streamChat({ messages, onChunk, onComplete, onError, abort
     console.error('[AI Service] Full error:', error);
 
     // 提取更详细的错误信息
-    let errorMessage = '未知错误';
+    let errorMessage = i18n.t('unknownError');
     if (error instanceof Error) {
       errorMessage = error.message;
       // 尝试提取 API 错误的详细信息

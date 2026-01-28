@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import { useTranslation } from 'react-i18next';
 import { Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImageAttachment } from '@/lib/types';
@@ -11,6 +12,7 @@ export interface MessageProps {
 }
 
 export function Message({ role, content, displayContent, attachedImages }: MessageProps) {
+  const { t } = useTranslation();
   const isUser = role === 'user';
   // 如果有 displayContent，显示它；否则显示 content
   const textToShow = displayContent || content;
@@ -41,7 +43,7 @@ export function Message({ role, content, displayContent, attachedImages }: Messa
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-foreground">{textToShow}</p>
-              <p className="text-xs text-muted-foreground">快捷指令</p>
+              <p className="text-xs text-muted-foreground">{t('shortcutCommand')}</p>
             </div>
           </div>
         )}
@@ -57,7 +59,7 @@ export function Message({ role, content, displayContent, attachedImages }: Messa
 
   // AI 消息：使用 markdown 渲染
   // 检查是否为错误消息
-  const isError = content.startsWith('错误:') || content.startsWith('错误：');
+  const isError = content.startsWith(t('error')) || content.startsWith('错误:') || content.startsWith('错误：') || content.startsWith('Error:');
 
   return (
     <div className={cn(

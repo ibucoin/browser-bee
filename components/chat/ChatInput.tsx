@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Globe, LayoutGrid, Plus, Square, MousePointer2 } from 'lucide-react';
 import { PageCard } from '@/components/page-card/PageCard';
 import { ElementCard } from '@/components/element-card/ElementCard';
@@ -25,13 +26,14 @@ async function extractTabContent(tabId: number): Promise<{ success: boolean; con
       if (response?.success) {
         resolve({ success: true, content: response.content });
       } else {
-        resolve({ success: false, error: response?.error || '提取失败' });
+        resolve({ success: false, error: response?.error || 'Extraction failed' });
       }
     });
   });
 }
 
 export function ChatInput() {
+  const { t } = useTranslation();
   const { getCurrentChat, setAttachments, addAttachment, removeAttachment, clearUnboundAttachments, getAttachmentId, addMessage, updateLastMessage, updateTabContent, setLoading, isCurrentTabLoading, state } = useChatStore();
   const [message, setMessage] = useState('');
   const isLoading = isCurrentTabLoading();
@@ -98,7 +100,7 @@ export function ChatInput() {
           const hostname = safeGetHostname(url);
           return {
             id: tab.id || 0,
-            title: tab.title || '未命名标签页',
+            title: tab.title || t('untitledTab'),
             url,
             favicon: tab.favIconUrl,
             hostname,
@@ -208,7 +210,7 @@ export function ChatInput() {
       } else if (message.type === 'ai_chat_error') {
         setLoading(chatTabId, false);
         streamingContentRef.current.delete(chatTabId);
-        updateLastMessage(chatTabId, `错误: ${message.error}`);
+        updateLastMessage(chatTabId, `${t('error')} ${message.error}`);
       }
     };
 
@@ -509,7 +511,7 @@ export function ChatInput() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isConfigured ? "输入消息..." : "请先配置 AI 服务..."}
+            placeholder={isConfigured ? t('inputMessage') : t('configureAIFirst')}
             rows={1}
             disabled={!isConfigured}
             className="w-full resize-none bg-transparent px-2 py-2 text-base focus:outline-none placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
@@ -521,8 +523,8 @@ export function ChatInput() {
                   type="button"
                   onClick={handleAbort}
                   className="group relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 hover:bg-red-500/10 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
-                  aria-label="停止生成"
-                  title="停止生成"
+                  aria-label={t('stopGeneration')}
+                  title={t('stopGeneration')}
                 >
                   {/* 动态光晕 */}
                   <div className="absolute inset-0 rounded-full bg-red-500/5 blur-[2px] transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
@@ -557,7 +559,7 @@ export function ChatInput() {
                     size="icon"
                     ref={attachButtonRef}
                     className="rounded-full"
-                    aria-label="添加内容"
+                    aria-label={t('addContent')}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -568,8 +570,8 @@ export function ChatInput() {
                     variant="outline"
                     size="icon"
                     className="rounded-full"
-                    aria-label="选择页面元素"
-                    title="选择页面元素"
+                    aria-label={t('selectElement')}
+                    title={t('selectElement')}
                   >
                     <MousePointer2 className={`h-4 w-4 ${isPickingElement ? 'animate-pulse text-purple-500' : ''}`} />
                   </Button>
@@ -598,10 +600,10 @@ export function ChatInput() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-foreground">
-                  {isPickingElement ? '选择中...' : '选择页面元素'}
+                  {isPickingElement ? t('selecting') : t('selectElement')}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  点击页面上的元素添加为上下文
+                  {t('selectElementDesc')}
                 </div>
               </div>
             </button>

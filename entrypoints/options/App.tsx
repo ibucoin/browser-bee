@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings, Sliders, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AISettings } from '@/components/settings/AISettings';
@@ -14,14 +15,15 @@ interface Tab {
   icon: React.ReactNode;
 }
 
-const tabs: Tab[] = [
-  { id: 'ai', label: 'AI 配置', icon: <Settings className="h-4 w-4" /> },
-  { id: 'shortcuts', label: '快捷操作', icon: <Zap className="h-4 w-4" /> },
-  { id: 'general', label: '通用设置', icon: <Sliders className="h-4 w-4" /> },
-];
-
 function App() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabId>('ai');
+
+  const tabs: Tab[] = [
+    { id: 'ai', label: t('aiConfig'), icon: <Settings className="h-4 w-4" /> },
+    { id: 'shortcuts', label: t('shortcuts'), icon: <Zap className="h-4 w-4" /> },
+    { id: 'general', label: t('generalSettings'), icon: <Sliders className="h-4 w-4" /> },
+  ];
 
   const renderContent = () => {
     switch (activeTab) {
@@ -40,7 +42,7 @@ function App() {
     <div className="flex min-h-screen">
       {/* 左侧 Tab 导航 */}
       <aside className="w-56 border-r bg-muted/30 p-4">
-        <h1 className="mb-6 text-lg font-semibold">Browser Bee 设置</h1>
+        <h1 className="mb-6 text-lg font-semibold">{t('browserBeeSettings')}</h1>
         <nav className="space-y-1">
           {tabs.map((tab) => (
             <button

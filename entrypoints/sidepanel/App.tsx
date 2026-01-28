@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/header/Header';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { ChatInput } from '@/components/chat/ChatInput';
@@ -8,6 +9,7 @@ import { safeGetHostname } from '@/lib/utils';
 import { TabEventMessage, TabInfo, Attachment } from '@/lib/types';
 
 function AppContent() {
+  const { t } = useTranslation();
   const { setActiveTab, initTabChat, addAttachment, removeTabChat, updateBoundTab, state } = useChatStore();
   const initialTabCheckedRef = useRef(false);
 
@@ -18,7 +20,7 @@ function AppContent() {
       if (activeTab?.id) {
         const tabInfo: TabInfo = {
           id: activeTab.id,
-          title: activeTab.title || '未命名标签页',
+          title: activeTab.title || t('untitledTab'),
           url: activeTab.url || '',
           favicon: activeTab.favIconUrl,
           hostname: safeGetHostname(activeTab.url || ''),
