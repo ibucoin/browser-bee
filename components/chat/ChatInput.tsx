@@ -510,10 +510,10 @@ export function ChatInput() {
                   onClick={handleAbort}
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full border-red-300 bg-red-50 hover:bg-red-100 hover:border-red-400 dark:border-red-800 dark:bg-red-950/50 dark:hover:bg-red-900/50 animate-pulse"
                   aria-label="停止生成"
                 >
-                  <Square className="h-2.5 w-2.5 fill-current" />
+                  <Square className="h-3 w-3 fill-red-500 text-red-500" />
                 </Button>
               ) : (
                 <>
